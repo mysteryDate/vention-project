@@ -98,11 +98,14 @@ class Main {
   public animate() {
     this.stats.begin();
 
+    for (const atom of this.atoms) {
+      atom.update();
+    }
+
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
 
     this.stats.end();
-
   }
 
   /** On resize event */
