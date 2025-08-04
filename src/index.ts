@@ -2,33 +2,41 @@ import Stats from "stats.js";
 import {
   BoxBufferGeometry,
   Color,
+  EdgesGeometry,
+  LineBasicMaterial,
+  LineSegments,
   Mesh,
-  MeshNormalMaterial,
   OrthographicCamera,
   PerspectiveCamera,
   Scene,
   WebGLRenderer
 } from "three";
+
+import Atom from "./atom";
+import Config from "./config.json";
+
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 
 class Main {
   /** The scene */
-  public scene: Scene;
+  private scene: Scene;
 
   /** The camera */
-  public camera: PerspectiveCamera | OrthographicCamera;
+  private camera: PerspectiveCamera | OrthographicCamera;
 
   /** The renderer */
-  public renderer: WebGLRenderer;
+  private renderer: WebGLRenderer;
 
   /** The orbit controls */
-  public controls: OrbitControls;
+  private controls: OrbitControls;
 
   /** The stats */
-  public stats: Stats;
+  private stats: Stats;
 
-  /** The cube mesh */
-  public cube: Mesh;
+  private atoms: Atom[];
+
+  /** The boundaries of the simulation */
+  private bounds: Mesh;
 
   constructor() {
     this.initViewport();
@@ -43,7 +51,7 @@ class Main {
     // Init camera.
     const aspect = window.innerWidth / window.innerHeight;
     this.camera = new PerspectiveCamera(50, aspect, 1, 5000);
-    this.camera.position.z = 700;
+    this.camera.position.z = 200;
 
     // Init renderer.
     this.renderer = new WebGLRenderer({
@@ -66,12 +74,17 @@ class Main {
     this.controls.update();
     this.controls.addEventListener("change", () => this.render());
 
-    // Add test mesh.
-    this.cube = this.createCubeMesh();
-    this.scene.add(this.cube);
-    this.render();
+    // Add the boundaries
+    this.bounds = this.createBoundaryMesh();
+    this.scene.add(this.bounds);
 
-    console.log(this);
+    // Add atoms.
+    this.atoms = [];
+    for (let i = 0; i < Config.number_of_atoms; i++) {
+      this.atoms.push(new Atom());
+      this.scene.add(this.atoms[i].mesh);
+    }
+    this.render();
   }
 
   /** Renders the scene */
@@ -84,9 +97,6 @@ class Main {
   /** Animates the scene */
   public animate() {
     this.stats.begin();
-
-    this.cube.rotation.x += 0.005;
-    this.cube.rotation.y += 0.001;
 
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
@@ -105,12 +115,15 @@ class Main {
     this.render();
   }
 
-  /** Creates a cube mesh */
-  public createCubeMesh() {
-    const geometry = new BoxBufferGeometry(200, 200, 200);
-    const material = new MeshNormalMaterial();
-    const mesh = new Mesh(geometry, material);
-    return mesh;
+  public createBoundaryMesh() {
+    const geometry = new BoxBufferGeometry(Config.simulation_size, Config.simulation_size, Config.simulation_size);
+    const edges = new EdgesGeometry(geometry);
+
+    const lineMaterial = new LineBasicMaterial({
+      color: 0x00ff00,
+      linewidth: 1
+    });
+    return new LineSegments(edges, lineMaterial);;
   }
 }
 
