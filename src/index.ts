@@ -82,7 +82,7 @@ class Main {
     this.atoms = [];
     for (let i = 0; i < Config.number_of_atoms; i++) {
       this.atoms.push(new Atom());
-      this.scene.add(this.atoms[i].mesh);
+      this.scene.add(this.atoms[i]);
     }
     this.render();
   }
