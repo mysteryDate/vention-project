@@ -1,21 +1,25 @@
 import {
-  BoxBufferGeometry,
+  Box3,
+  BufferGeometry,
+  Material,
   Mesh,
-  MeshNormalMaterial,
   Vector3
 } from "three";
 
 import Config from "./config.json";
 
 export default class Atom extends Mesh {
+  public key: number; // Can't use "id" :'(
   public rotation_axis: Vector3;
   public rotation_speed: number;
   public velocity: Vector3;
 
-  constructor() {
-    const geometry = new BoxBufferGeometry(Config.atom_size, Config.atom_size, Config.atom_size);
-    const material = new MeshNormalMaterial();
+  private _boundingBox: Box3;
+  private _boundingBoxDirty: boolean = true;
+
+  constructor(key: number, geometry: BufferGeometry, material: Material) {
     super(geometry, material);
+    this.key = key;
 
     function randomVector3() {
       return new Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5);
@@ -30,7 +34,33 @@ export default class Atom extends Mesh {
     this.setRotationFromAxisAngle(randomVector3().normalize(), Math.PI * 2 * Math.random())
   }
 
-  public update() {
+  private updateBoundingBox(): void {
+    if (!this._boundingBoxDirty) {
+      throw new Error("Updating a non-dirty bounding box.");
+    }
+    this.updateMatrixWorld(true); // not sure if this is necessary
+
+    this._boundingBox.makeEmpty()
+    this._boundingBox.expandByObject(this);
+    this._boundingBoxDirty = false;
+  }
+
+  public getBoundingBox(): Box3 {
+    if (this._boundingBoxDirty) {
+      this.updateBoundingBox();
+    }
+    return this._boundingBox;
+  }
+
+  // TODO: a prettier way to do this?
+  public getMinX(): number {return this.getBoundingBox().min.x;}
+  public getMinY(): number {return this.getBoundingBox().min.y;}
+  public getMinZ(): number {return this.getBoundingBox().min.z;}
+  public getMaxX(): number {return this.getBoundingBox().max.x;}
+  public getMaxY(): number {return this.getBoundingBox().max.y;}
+  public getMaxZ(): number {return this.getBoundingBox().max.z;}
+
+  public update(): void {
     this.rotateOnAxis(this.rotation_axis, this.rotation_speed);
     this.position.add(this.velocity);
 
@@ -53,5 +83,7 @@ export default class Atom extends Mesh {
     if (this.position.z < -Config.simulation_size / 2) {
       this.velocity.z *= -1;
     }
+
+    this._boundingBoxDirty = true;
   }
 }

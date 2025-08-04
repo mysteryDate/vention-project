@@ -6,6 +6,8 @@ import {
   LineBasicMaterial,
   LineSegments,
   Mesh,
+  MeshBasicMaterial,
+  MeshNormalMaterial,
   OrthographicCamera,
   PerspectiveCamera,
   Scene,
@@ -14,6 +16,7 @@ import {
 
 import Atom from "./atom";
 import Config from "./config.json";
+import SweepAndPrune, {CollisionPair} from "./sweep-and-prune";
 
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 
@@ -37,6 +40,13 @@ class Main {
 
   /** The boundaries of the simulation */
   private bounds: Mesh;
+
+  /** some materials for the cubes */
+  private notCollidingMaterial: MeshNormalMaterial;
+  private collidingMaterial: MeshBasicMaterial;
+
+  /** The collision detector */
+  private collisionDetector: SweepAndPrune;
 
   constructor() {
     this.initViewport();
@@ -80,10 +90,16 @@ class Main {
 
     // Add atoms.
     this.atoms = [];
+    const geometry = new BoxBufferGeometry(Config.atom_size, Config.atom_size, Config.atom_size);
+    this.notCollidingMaterial = new MeshNormalMaterial();
     for (let i = 0; i < Config.number_of_atoms; i++) {
-      this.atoms.push(new Atom());
+      this.atoms.push(new Atom(i, geometry, this.notCollidingMaterial));
       this.scene.add(this.atoms[i]);
     }
+    this.collidingMaterial = new MeshBasicMaterial();
+
+    this.collisionDetector = new SweepAndPrune(this.atoms);
+
     this.render();
   }
 
@@ -100,6 +116,19 @@ class Main {
 
     for (const atom of this.atoms) {
       atom.update();
+    }
+
+    // Collisions
+    const collisionPairs: CollisionPair[] = this.collisionDetector.detectCollisions();
+    const collidingAtoms = new Set<Atom>();
+
+    for (const pair of collisionPairs) {
+      collidingAtoms.add(pair[0]);
+      collidingAtoms.add(pair[1]);
+    }
+
+    for (const atom of collidingAtoms) {
+      atom.material = this.collidingMaterial;
     }
 
     this.controls.update();
