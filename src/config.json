@@ -1,6 +1,7 @@
 {
   "simulation_size": 100,
-  "atom_size": 20,
-  "number_of_atoms": 2,
-  "gravity_strength": 0
+  "atom_size": 30,
+  "atom_mass": 1,
+  "restitution_coefficient": 1.0,
+  "number_of_atoms": 2
 }

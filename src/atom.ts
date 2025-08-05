@@ -28,19 +28,30 @@ export default class Atom extends Mesh {
     this.rotation_axis = randomVector3().normalize();
     this.rotation_speed = Math.random() / 100;
 
-    this.velocity = randomVector3().normalize().multiplyScalar(1.1);
+    this.velocity = randomVector3().normalize().multiplyScalar(0.1);
 
     this.position.copy(randomVector3().multiplyScalar(Config.simulation_size));
 
-    this.setRotationFromAxisAngle(randomVector3().normalize(), Math.PI * 2 * Math.random());
-
-    this.setRotationFromAxisAngle(new Vector3(0, 0, 1).normalize(), Math.PI/3);
+    // this.setRotationFromAxisAngle(randomVector3().normalize(), Math.PI * 2 * Math.random());
 
     this.rotation_speed = 0;
     this.position.y = 0;
     this.velocity.y = 0;
     this.position.z = 0;
     this.velocity.z = 0;
+
+    if (key % 2 == 0) {
+      // this.setRotationFromAxisAngle(new Vector3(0, 0, 0.1).normalize(), Math.PI/3);
+      this.position.x = -20;
+      this.velocity.x = 0.15;
+
+    } else {
+      this.position.x = 20;
+      this.velocity.x = -0.15;
+      // this.position.z = 5;
+      this.position.y = 5;
+    }
+
   }
 
   private updateBoundingBox(): void {
@@ -75,22 +86,34 @@ export default class Atom extends Mesh {
 
     // Bounce off the walls.
     if (this.position.x > Config.simulation_size / 2) {
-      this.velocity.x *= -1;
+      // this.velocity.x *= -1;
+      this.velocity.multiplyScalar(0.9);
+      this.velocity.x -= 0.1;
     }
     if (this.position.y > Config.simulation_size / 2) {
-      this.velocity.y *= -1;
+      // this.velocity.y *= -1;
+      this.velocity.multiplyScalar(0.9);
+      this.velocity.y -= 0.1;
     }
     if (this.position.z > Config.simulation_size / 2) {
-      this.velocity.z *= -1;
+      // this.velocity.z *= -1;
+      this.velocity.multiplyScalar(0.9);
+      this.velocity.z -= 0.1;
     }
     if (this.position.x < -Config.simulation_size / 2) {
-      this.velocity.x *= -1;
+      // this.velocity.x *= -1;
+      this.velocity.multiplyScalar(0.9);
+      this.velocity.x += 0.1;
     }
     if (this.position.y < -Config.simulation_size / 2) {
-      this.velocity.y *= -1;
+      // this.velocity.y *= -1;
+      this.velocity.multiplyScalar(0.9);
+      this.velocity.y += 0.1;
     }
     if (this.position.z < -Config.simulation_size / 2) {
-      this.velocity.z *= -1;
+      // this.velocity.z *= -1;
+      this.velocity.multiplyScalar(0.9);
+      this.velocity.z += 0.1;
     }
 
     this._boundingBoxDirty = true;

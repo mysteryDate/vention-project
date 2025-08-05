@@ -97,7 +97,17 @@ interface OrientedBoundingBox {
   axes: Vector3[]; // 3 orthonormal vectors representing local coordinate system
 }
 
-// Separating axis theorem. Like shining a flashlight perpendicular to each axis of each atom, then along each
+interface CollisionInfo {
+  atomA: Atom;
+  atomB: Atom;
+  contactPoint: Vector3;
+  contactNormal: Vector3;
+  penetrationDepth: number;
+}
+
+// Separating axis theorem. Like shining a flashlight perpendicular to each axis of each atom (3 + 3 = 6 total), and
+// then along each combined axis, which is the normalized cross product of each combination of axes (3 x 3 = 9 total).
+// So 15 total checks take place. This is a big heavy, which is why we do the "broad phase" sweep and prune first.
 // https://dyn4j.org/2010/01/sat/
 class SATCollisionDetector {
   private static readonly EPSILON = 1e-6;
@@ -141,43 +151,146 @@ class SATCollisionDetector {
   }
 
   // Like sweep and prune, objects that are colliding need their extents to overlap on relevant axes.
-  private static testSeparatingAxis(obbA: OrientedBoundingBox, obbB: OrientedBoundingBox, axis: Vector3): boolean {
+  private static testSeparatingAxis(
+    obbA: OrientedBoundingBox,
+    obbB: OrientedBoundingBox,
+    axis: Vector3): {separated: boolean; overlap: number } {
+
     const projA = this.projectOBBOntoAxis(obbA, axis);
     const projB = this.projectOBBOntoAxis(obbB, axis);
 
-    return projA.max >= projB.min && projB.max >= projA.min;
+    const separated = !(projA.max >= projB.min && projB.max >= projA.min);
+    // How much the two objects overlap along this axis.
+    const overlap = separated ? 0 : Math.min(projA.max - projB.min, projB.max - projA.min);
+
+    return {separated, overlap};
   }
 
-  public static testCollision(atomA: Atom, atomB: Atom): boolean {
+  private static findCollisionInfo(atomA: Atom, atomB: Atom): CollisionInfo | null {
     const obbA = this.meshToOBB(atomA);
     const obbB = this.meshToOBB(atomB);
 
-    // Test the 6 face normals (3 from each OBB)
-    for (let i = 0; i < 3; i++) {
-      if (!this.testSeparatingAxis(obbA, obbB, obbA.axes[i])) {
-        return false; // Found separating axis
-      }
-      if (!this.testSeparatingAxis(obbA, obbB, obbB.axes[i])) {
-        return false; // Found separating axis
-      }
-    }
+    let minOverlap = Infinity;
+    let collisionNormal = new Vector3();
 
-    // Test the 9 cross products between edge directions
-    for (let i = 0; i < 3; i++) {
-      for (let j = 0; j < 3; j++) {
-        const crossProduct = new Vector3().crossVectors(obbA.axes[i], obbB.axes[j]);
+    // Test all 15 potential separating axes and track minimum separation.
+    const testAxes = [
+      ...obbA.axes,
+      ...obbB.axes,
+      // Cross products for edge-edge collisions. Filter out co-linear (degenerate) combinations and normalize the rest.
+      ...obbA.axes.flatMap(axisA =>
+        obbB.axes.map(axisB => new Vector3().crossVectors(axisA, axisB))
+          .filter(cross => cross.length() > this.EPSILON).map(cross => cross.normalize())
+      )
+    ];
 
-        // Skip parallel edges (cross product near zero)
-        if (crossProduct.length() > this.EPSILON) {
-          if (!this.testSeparatingAxis(obbA, obbB, crossProduct.normalize())) {
-            return false; // Found separating axis
-          }
+    for (const axis of testAxes) {
+      const result = this.testSeparatingAxis(obbA, obbB, axis);
+
+      if (result.separated) {
+        return null; // No collision
+      }
+
+      // The smallest overlap respresents the smallest distance needed to push the overlapping cubes apart.
+      if (result.overlap < minOverlap) {
+        minOverlap = result.overlap;
+        collisionNormal = axis.clone().normalize();
+
+        // Ensure normal points from A to B.
+        const centerDiff = obbB.center.clone().sub(obbA.center);
+        if (collisionNormal.dot(centerDiff) < 0) {
+          collisionNormal.negate();
         }
       }
     }
 
-    // No separating axis found - objects are colliding
-    return true;
+    // Approximate contact point as midpoint between closest surfaces.
+    const contactPoint = obbA.center.clone()
+      .add(obbB.center)
+      .multiplyScalar(0.5);
+
+    return {
+      atomA,
+      atomB,
+      contactPoint,
+      contactNormal: collisionNormal,
+      penetrationDepth: minOverlap
+    };
+  }
+
+  // Modify the velocity and rotation of colliding atoms.
+  // https://www.cs.ubc.ca/~rhodin/2020_2021_CPSC_427/lectures/D_CollisionTutorial.pdf
+  // https://en.wikipedia.org/wiki/Collision_response#Impulse-based_contact_model
+  private static resolveCollision(collision: CollisionInfo): void {
+    const {atomA, atomB, contactPoint, contactNormal, penetrationDepth} = collision;
+
+    // Separate objects to prevent overlap.
+    const separationVector = contactNormal.clone().multiplyScalar(penetrationDepth * 0.5);
+    atomA.position.sub(separationVector);
+    atomB.position.add(separationVector);
+
+    // Calculate relative velocity at contact point.
+    const rA = contactPoint.clone().sub(atomA.position); // Contact point relative to A's center
+    const rB = contactPoint.clone().sub(atomB.position); // Contact point relative to B's center
+
+    // Angular velocity contribution to contact point velocity
+    const angularVelA = new Vector3().crossVectors(atomA.rotation_axis.clone().multiplyScalar(atomA.rotation_speed), rA);
+    const angularVelB = new Vector3().crossVectors(atomB.rotation_axis.clone().multiplyScalar(atomB.rotation_speed), rB);
+
+    // Total velocity at contact point
+    const velA = atomA.velocity.clone().add(angularVelA);
+    const velB = atomB.velocity.clone().add(angularVelB);
+    const relativeVelocity = velA.sub(velB);
+
+    // Velocity component along collision normal
+    const normalVelocity = relativeVelocity.dot(contactNormal);
+
+    // Don't resolve if objects are separating
+    if (normalVelocity < 0) return;
+
+    // Collision moment arms.
+    const rA_cross_n = new Vector3().crossVectors(rA, contactNormal);
+    const rB_cross_n = new Vector3().crossVectors(rB, contactNormal);
+
+    // This is already very complicated. Give them the moment of a inertia of a solid sphere.
+    const moment_of_inertia = (2 / 5) * Config.atom_mass * Math.pow(Config.atom_size / 2, 2);
+
+    const denominator = (2 / Config.atom_mass) +
+      ((rA_cross_n.lengthSq() + rB_cross_n.lengthSq()) / moment_of_inertia);
+
+    const impulseMagnitude = -(1 + Config.restitution_coefficient) * normalVelocity / denominator;
+    const impulse = contactNormal.clone().multiplyScalar(impulseMagnitude);
+
+    // Apply linear impulse
+    atomA.velocity.add(impulse.clone().multiplyScalar(1 / Config.atom_mass));
+    atomB.velocity.sub(impulse.clone().multiplyScalar(1 / Config.atom_mass));
+
+    // Apply angular impulse
+    const angularImpulseA = new Vector3().crossVectors(rA, impulse).multiplyScalar(1 / moment_of_inertia);
+    const angularImpulseB = new Vector3().crossVectors(rB, impulse).multiplyScalar(-1 / moment_of_inertia);
+
+    // Update rotation (convert angular impulse to change in angular velocity)
+    const newAngularVelA = atomA.rotation_axis.clone().multiplyScalar(atomA.rotation_speed).add(angularImpulseA);
+    const newAngularVelB = atomB.rotation_axis.clone().multiplyScalar(atomB.rotation_speed).add(angularImpulseB);
+
+    // Update rotation axis and speed for A
+    atomA.rotation_speed = newAngularVelA.length();
+    atomA.rotation_axis = newAngularVelA.normalize();
+
+    // Update rotation axis and speed for B
+    atomB.rotation_speed = newAngularVelB.length();
+    atomB.rotation_axis = newAngularVelB.normalize();
+  }
+
+  public static testAndResolveCollision(atomA: Atom, atomB: Atom): boolean {
+    const collisionInfo = this.findCollisionInfo(atomA, atomB);
+
+    if(collisionInfo) {
+      this.resolveCollision(collisionInfo);
+      return true;
+    }
+
+    return false;
   }
 }
 
@@ -188,10 +301,12 @@ export default class CollisionDetector extends SweepAndPrune {
     const broadPhaseCollisions = this.detectSAPCollisions();
 
     // Then, filter using SAT for precise collision detection (narrow phase)
+    // Though it feels poorly structured. This is an easy time to actually update the velocities and rotations of the
+    // cubes.
+    // TODO: don't break law of demeter
     const preciseCollisions: CollisionPair[] = [];
-
     for (const [atomA, atomB] of broadPhaseCollisions) {
-      if (SATCollisionDetector.testCollision(atomA, atomB)) {
+      if (SATCollisionDetector.testAndResolveCollision(atomA, atomB)) {
         preciseCollisions.push([atomA, atomB]);
       }
     }
