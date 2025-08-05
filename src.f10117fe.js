@@ -33117,10 +33117,10 @@ if (typeof __THREE_DEVTOOLS__ !== 'undefined') {
 },{}],"src/config.json":[function(require,module,exports) {
 module.exports = {
   "simulation_size": 100,
-  "atom_size": 30,
+  "atom_size": 2,
   "atom_mass": 1,
   "restitution_coefficient": 1.0,
-  "number_of_atoms": 2
+  "number_of_atoms": 512
 };
 },{}],"src/atom.ts":[function(require,module,exports) {
 "use strict";
@@ -33161,24 +33161,38 @@ var Atom = /*#__PURE__*/function (_three_1$Mesh) {
     }
     _this.rotation_axis = randomVector3().normalize();
     _this.rotation_speed = Math.random() / 100;
-    _this.velocity = randomVector3().normalize().multiplyScalar(0.1);
+    _this.velocity = randomVector3().normalize().multiplyScalar(0.5);
     _this.position.copy(randomVector3().multiplyScalar(config_json_1.default.simulation_size));
-    // this.setRotationFromAxisAngle(randomVector3().normalize(), Math.PI * 2 * Math.random());
-    _this.rotation_speed = 0;
-    _this.position.y = 0;
-    _this.velocity.y = 0;
-    _this.position.z = 0;
-    _this.velocity.z = 0;
-    if (key % 2 == 0) {
-      // this.setRotationFromAxisAngle(new Vector3(0, 0, 0.1).normalize(), Math.PI/3);
-      _this.position.x = -20;
-      _this.velocity.x = 0.15;
+    _this.setRotationFromAxisAngle(randomVector3().normalize(), Math.PI * 2 * Math.random());
+    // Just a fun scenario
+    if (key < 1) {
+      // this.position.set(-Config.simulation_size / 2, -Config.simulation_size / 2, -Config.simulation_size / 2);
     } else {
-      _this.position.x = 20;
-      _this.velocity.x = -0.15;
-      // this.position.z = 5;
-      _this.position.y = 5;
+      var grid_size = Math.ceil(Math.pow(config_json_1.default.number_of_atoms, 1 / 3));
+      var x_rank = _this.key % grid_size;
+      var y_rank = Math.floor(_this.key / grid_size) % grid_size;
+      var z_rank = Math.floor(_this.key / grid_size / grid_size);
+      _this.position.x = x_rank / grid_size * config_json_1.default.simulation_size - config_json_1.default.simulation_size / 2 + config_json_1.default.atom_size * 2;
+      _this.position.y = y_rank / grid_size * config_json_1.default.simulation_size - config_json_1.default.simulation_size / 2 + config_json_1.default.atom_size * 2;
+      _this.position.z = z_rank / grid_size * config_json_1.default.simulation_size - config_json_1.default.simulation_size / 2 + config_json_1.default.atom_size * 2;
+      _this.velocity.multiplyScalar(0.0);
+      _this.rotation_speed = 0;
     }
+    // this.rotation_speed = 0;
+    // this.position.y = 0;
+    // this.velocity.y = 0;
+    // this.position.z = 0;
+    // this.velocity.z = 0;
+    // if (key % 2 == 0) {
+    //   // this.setRotationFromAxisAngle(new Vector3(0, 0, 0.1).normalize(), Math.PI/3);
+    //   this.position.x = -20;
+    //   this.velocity.x = 0.15;
+    // } else {
+    //   this.position.x = 20;
+    //   this.velocity.x = -0.15;
+    //   // this.position.z = 5;
+    //   this.position.y = 5;
+    // }
     return _this;
   }
   _inherits(Atom, _three_1$Mesh);
@@ -33240,32 +33254,32 @@ var Atom = /*#__PURE__*/function (_three_1$Mesh) {
       // Bounce off the walls.
       if (this.position.x > config_json_1.default.simulation_size / 2) {
         // this.velocity.x *= -1;
-        this.velocity.multiplyScalar(0.9);
+        // this.velocity.multiplyScalar(0.9);
         this.velocity.x -= 0.1;
       }
       if (this.position.y > config_json_1.default.simulation_size / 2) {
         // this.velocity.y *= -1;
-        this.velocity.multiplyScalar(0.9);
+        // this.velocity.multiplyScalar(0.9);
         this.velocity.y -= 0.1;
       }
       if (this.position.z > config_json_1.default.simulation_size / 2) {
         // this.velocity.z *= -1;
-        this.velocity.multiplyScalar(0.9);
+        // this.velocity.multiplyScalar(0.9);
         this.velocity.z -= 0.1;
       }
       if (this.position.x < -config_json_1.default.simulation_size / 2) {
         // this.velocity.x *= -1;
-        this.velocity.multiplyScalar(0.9);
+        // this.velocity.multiplyScalar(0.9);
         this.velocity.x += 0.1;
       }
       if (this.position.y < -config_json_1.default.simulation_size / 2) {
         // this.velocity.y *= -1;
-        this.velocity.multiplyScalar(0.9);
+        // this.velocity.multiplyScalar(0.9);
         this.velocity.y += 0.1;
       }
       if (this.position.z < -config_json_1.default.simulation_size / 2) {
         // this.velocity.z *= -1;
-        this.velocity.multiplyScalar(0.9);
+        // this.velocity.multiplyScalar(0.9);
         this.velocity.z += 0.1;
       }
       this._boundingBoxDirty = true;
@@ -34503,7 +34517,7 @@ var Main = /*#__PURE__*/function () {
       try {
         for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
           var _atom = _step3.value;
-          if (collidingAtomKeys.has(_atom.key)) {
+          if (collidingAtomKeys.has(_atom.key) && _atom.velocity.length() > 0) {
             _atom.material = this.collidingMaterial;
           } else {
             _atom.material = this.notCollidingMaterial;
@@ -34569,7 +34583,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "60560" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "56578" + '/');
   ws.onmessage = function (event) {
     checkedAssets = {};
     assetsToAccept = [];
