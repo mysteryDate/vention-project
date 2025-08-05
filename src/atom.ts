@@ -26,13 +26,21 @@ export default class Atom extends Mesh {
     }
 
     this.rotation_axis = randomVector3().normalize();
-    this.rotation_speed = Math.random() / 10;
+    this.rotation_speed = Math.random() / 100;
 
-    this.velocity = randomVector3().normalize().multiplyScalar(0.1);
+    this.velocity = randomVector3().normalize().multiplyScalar(1.1);
 
     this.position.copy(randomVector3().multiplyScalar(Config.simulation_size));
 
-    this.setRotationFromAxisAngle(randomVector3().normalize(), Math.PI * 2 * Math.random())
+    this.setRotationFromAxisAngle(randomVector3().normalize(), Math.PI * 2 * Math.random());
+
+    this.setRotationFromAxisAngle(new Vector3(0, 0, 1).normalize(), Math.PI/3);
+
+    this.rotation_speed = 0;
+    this.position.y = 0;
+    this.velocity.y = 0;
+    this.position.z = 0;
+    this.velocity.z = 0;
   }
 
   private updateBoundingBox(): void {

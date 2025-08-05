@@ -15,8 +15,8 @@ import {
 } from "three";
 
 import Atom from "./atom";
+import CollisionDetector, {CollisionPair} from "./collision-detector";
 import Config from "./config.json";
-import SweepAndPrune, {CollisionPair} from "./sweep-and-prune";
 
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 
@@ -46,7 +46,7 @@ class Main {
   private collidingMaterial: MeshBasicMaterial;
 
   /** The collision detector */
-  private collisionDetector: SweepAndPrune;
+  private collisionDetector: CollisionDetector;
 
   constructor() {
     this.initViewport();
@@ -98,7 +98,7 @@ class Main {
     }
     this.collidingMaterial = new MeshBasicMaterial();
 
-    this.collisionDetector = new SweepAndPrune(this.atoms);
+    this.collisionDetector = new CollisionDetector(this.atoms);
 
     this.render();
   }
