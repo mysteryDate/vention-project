@@ -14,7 +14,7 @@ export default class Atom extends Mesh {
   public rotation_speed: number;
   public velocity: Vector3;
 
-  private _boundingBox: Box3;
+  private _boundingBox: Box3 = new Box3();
   private _boundingBoxDirty: boolean = true;
 
   constructor(key: number, geometry: BufferGeometry, material: Material) {
@@ -31,6 +31,7 @@ export default class Atom extends Mesh {
     this.velocity = randomVector3().normalize().multiplyScalar(0.1);
 
     this.position.copy(randomVector3().multiplyScalar(Config.simulation_size));
+
     this.setRotationFromAxisAngle(randomVector3().normalize(), Math.PI * 2 * Math.random())
   }
 

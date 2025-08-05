@@ -1,6 +1,6 @@
 {
   "simulation_size": 100,
-  "atom_size": 15,
-  "number_of_atoms": 100,
-  "gravity_strength": 1
+  "atom_size": 2,
+  "number_of_atoms": 2000,
+  "gravity_strength": 0
 }

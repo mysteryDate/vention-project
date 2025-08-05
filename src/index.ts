@@ -120,15 +120,19 @@ class Main {
 
     // Collisions
     const collisionPairs: CollisionPair[] = this.collisionDetector.detectCollisions();
-    const collidingAtoms = new Set<Atom>();
+    const collidingAtomKeys = new Set<number>();
 
     for (const pair of collisionPairs) {
-      collidingAtoms.add(pair[0]);
-      collidingAtoms.add(pair[1]);
+      collidingAtomKeys.add(pair[0].key);
+      collidingAtomKeys.add(pair[1].key);
     }
 
-    for (const atom of collidingAtoms) {
-      atom.material = this.collidingMaterial;
+    for (const atom of this.atoms) {
+      if (collidingAtomKeys.has(atom.key)) {
+        atom.material = this.collidingMaterial;
+      } else {
+        atom.material = this.notCollidingMaterial;
+      }
     }
 
     this.controls.update();
