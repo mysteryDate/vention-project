@@ -128,7 +128,7 @@ class Main {
     }
 
     for (const atom of this.atoms) {
-      if (collidingAtomKeys.has(atom.key)) {
+      if (collidingAtomKeys.has(atom.key) && atom.velocity.length() > 0) {
         atom.material = this.collidingMaterial;
       } else {
         atom.material = this.notCollidingMaterial;

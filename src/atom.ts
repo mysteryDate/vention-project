@@ -28,29 +28,47 @@ export default class Atom extends Mesh {
     this.rotation_axis = randomVector3().normalize();
     this.rotation_speed = Math.random() / 100;
 
-    this.velocity = randomVector3().normalize().multiplyScalar(0.1);
+    this.velocity = randomVector3().normalize().multiplyScalar(0.5);
 
     this.position.copy(randomVector3().multiplyScalar(Config.simulation_size));
 
-    // this.setRotationFromAxisAngle(randomVector3().normalize(), Math.PI * 2 * Math.random());
+    this.setRotationFromAxisAngle(randomVector3().normalize(), Math.PI * 2 * Math.random());
 
-    this.rotation_speed = 0;
-    this.position.y = 0;
-    this.velocity.y = 0;
-    this.position.z = 0;
-    this.velocity.z = 0;
-
-    if (key % 2 == 0) {
-      // this.setRotationFromAxisAngle(new Vector3(0, 0, 0.1).normalize(), Math.PI/3);
-      this.position.x = -20;
-      this.velocity.x = 0.15;
-
+    // Just a fun scenario
+    if (key < 1) {
+      // this.position.set(-Config.simulation_size / 2, -Config.simulation_size / 2, -Config.simulation_size / 2);
     } else {
-      this.position.x = 20;
-      this.velocity.x = -0.15;
-      // this.position.z = 5;
-      this.position.y = 5;
+
+      const grid_size = Math.ceil(Math.pow(Config.number_of_atoms, 1/3));
+      const x_rank = (this.key % grid_size);
+      const y_rank = Math.floor(this.key / grid_size) % grid_size;
+      const z_rank = Math.floor(this.key / grid_size / grid_size);
+
+      this.position.x = x_rank / grid_size * Config.simulation_size - Config.simulation_size / 2 + Config.atom_size * 2;
+      this.position.y = y_rank / grid_size * Config.simulation_size - Config.simulation_size / 2 + Config.atom_size * 2;
+      this.position.z = z_rank / grid_size * Config.simulation_size - Config.simulation_size / 2 + Config.atom_size * 2;
+      this.velocity.multiplyScalar(0.0);
+      this.rotation_speed = 0;
+
     }
+
+    // this.rotation_speed = 0;
+    // this.position.y = 0;
+    // this.velocity.y = 0;
+    // this.position.z = 0;
+    // this.velocity.z = 0;
+
+    // if (key % 2 == 0) {
+    //   // this.setRotationFromAxisAngle(new Vector3(0, 0, 0.1).normalize(), Math.PI/3);
+    //   this.position.x = -20;
+    //   this.velocity.x = 0.15;
+
+    // } else {
+    //   this.position.x = 20;
+    //   this.velocity.x = -0.15;
+    //   // this.position.z = 5;
+    //   this.position.y = 5;
+    // }
 
   }
 
@@ -87,32 +105,32 @@ export default class Atom extends Mesh {
     // Bounce off the walls.
     if (this.position.x > Config.simulation_size / 2) {
       // this.velocity.x *= -1;
-      this.velocity.multiplyScalar(0.9);
+      // this.velocity.multiplyScalar(0.9);
       this.velocity.x -= 0.1;
     }
     if (this.position.y > Config.simulation_size / 2) {
       // this.velocity.y *= -1;
-      this.velocity.multiplyScalar(0.9);
+      // this.velocity.multiplyScalar(0.9);
       this.velocity.y -= 0.1;
     }
     if (this.position.z > Config.simulation_size / 2) {
       // this.velocity.z *= -1;
-      this.velocity.multiplyScalar(0.9);
+      // this.velocity.multiplyScalar(0.9);
       this.velocity.z -= 0.1;
     }
     if (this.position.x < -Config.simulation_size / 2) {
       // this.velocity.x *= -1;
-      this.velocity.multiplyScalar(0.9);
+      // this.velocity.multiplyScalar(0.9);
       this.velocity.x += 0.1;
     }
     if (this.position.y < -Config.simulation_size / 2) {
       // this.velocity.y *= -1;
-      this.velocity.multiplyScalar(0.9);
+      // this.velocity.multiplyScalar(0.9);
       this.velocity.y += 0.1;
     }
     if (this.position.z < -Config.simulation_size / 2) {
       // this.velocity.z *= -1;
-      this.velocity.multiplyScalar(0.9);
+      // this.velocity.multiplyScalar(0.9);
       this.velocity.z += 0.1;
     }
 
