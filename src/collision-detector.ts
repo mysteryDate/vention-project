@@ -1,6 +1,6 @@
 import {Matrix3, Vector3} from "three";
 import Atom from "./atom";
-import Config from "./config.json";
+import Config from "./config";
 
 export type CollisionPair = [Atom, Atom];
 type Axis = {

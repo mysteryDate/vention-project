@@ -3,6 +3,7 @@ import {
   BoxBufferGeometry,
   Color,
   EdgesGeometry,
+  Euler,
   LineBasicMaterial,
   LineSegments,
   Mesh,
@@ -16,7 +17,7 @@ import {
 
 import Atom from "./atom";
 import CollisionDetector, {CollisionPair} from "./collision-detector";
-import Config from "./config.json";
+import Config from "./config";
 
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 
@@ -90,17 +91,76 @@ class Main {
 
     // Add atoms.
     this.atoms = [];
-    const geometry = new BoxBufferGeometry(Config.atom_size, Config.atom_size, Config.atom_size);
+
     this.notCollidingMaterial = new MeshNormalMaterial();
-    for (let i = 0; i < Config.number_of_atoms; i++) {
-      this.atoms.push(new Atom(i, geometry, this.notCollidingMaterial));
-      this.scene.add(this.atoms[i]);
-    }
+    this.createScenario();
+
+
     this.collidingMaterial = new MeshBasicMaterial();
 
     this.collisionDetector = new CollisionDetector(this.atoms);
 
     this.render();
+  }
+
+  private createAtoms() {
+    const geometry = new BoxBufferGeometry(Config.atom_size, Config.atom_size, Config.atom_size);
+    for (let i = 0; i < Config.number_of_atoms; i++) {
+      this.atoms.push(new Atom(i, geometry, this.notCollidingMaterial));
+      this.scene.add(this.atoms[i]);
+    }
+
+  }
+
+  private createScenario() {
+    if (Config.scenario == 0) {
+      this.createAtoms();
+    } if (Config.scenario == 1) {
+      // A test to see two boxes colliding
+      Config.number_of_atoms = 2;
+      Config.atom_size = 30;
+      this.createAtoms();
+
+      this.atoms.forEach(atom => {
+        atom.velocity.multiplyScalar(0);
+        atom.position.multiplyScalar(0);
+        atom.setRotationFromEuler(new Euler(0, 0, 0));
+        atom.rotation_speed = 0;
+        if (atom.key == 0) {
+          atom.position.x = -40;
+          atom.position.y = 10;
+          atom.velocity.x = 0.1;
+          atom.position.z = 10;
+        } else {
+          atom.position.x = 20;
+          atom.position.y = -10;
+        }
+      });
+
+    } else if (Config.scenario == 2) {
+      // One atom bouncing around a lattice.
+      Config.number_of_atoms = 512;
+      Config.atom_size = 2;
+
+      this.createAtoms();
+
+      this.atoms.forEach(atom => {
+        if (atom.key < 1) {
+          atom.velocity.normalize().multiplyScalar(0.5);
+        } else {
+          const grid_size = Math.ceil(Math.pow(Config.number_of_atoms, 1 / 3));
+          const x_rank = (atom.key % grid_size);
+          const y_rank = Math.floor(atom.key / grid_size) % grid_size;
+          const z_rank = Math.floor(atom.key / grid_size / grid_size);
+
+          atom.position.x = x_rank / grid_size * Config.simulation_size - Config.simulation_size / 2 + Config.atom_size * 2;
+          atom.position.y = y_rank / grid_size * Config.simulation_size - Config.simulation_size / 2 + Config.atom_size * 2;
+          atom.position.z = z_rank / grid_size * Config.simulation_size - Config.simulation_size / 2 + Config.atom_size * 2;
+          atom.velocity.multiplyScalar(0.0);
+          atom.rotation_speed = 0;
+        }
+      });
+    }
   }
 
   /** Renders the scene */

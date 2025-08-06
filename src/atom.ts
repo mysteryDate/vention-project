@@ -6,7 +6,7 @@ import {
   Vector3
 } from "three";
 
-import Config from "./config.json";
+import Config from "./config";
 
 export default class Atom extends Mesh {
   public key: number; // Can't use "id" :'(
@@ -33,44 +33,8 @@ export default class Atom extends Mesh {
     this.position.copy(randomVector3().multiplyScalar(Config.simulation_size));
 
     this.setRotationFromAxisAngle(randomVector3().normalize(), Math.PI * 2 * Math.random());
-
-    // Just a fun scenario
-    if (key < 1) {
-      // this.position.set(-Config.simulation_size / 2, -Config.simulation_size / 2, -Config.simulation_size / 2);
-    } else {
-
-      const grid_size = Math.ceil(Math.pow(Config.number_of_atoms, 1/3));
-      const x_rank = (this.key % grid_size);
-      const y_rank = Math.floor(this.key / grid_size) % grid_size;
-      const z_rank = Math.floor(this.key / grid_size / grid_size);
-
-      this.position.x = x_rank / grid_size * Config.simulation_size - Config.simulation_size / 2 + Config.atom_size * 2;
-      this.position.y = y_rank / grid_size * Config.simulation_size - Config.simulation_size / 2 + Config.atom_size * 2;
-      this.position.z = z_rank / grid_size * Config.simulation_size - Config.simulation_size / 2 + Config.atom_size * 2;
-      this.velocity.multiplyScalar(0.0);
-      this.rotation_speed = 0;
-
-    }
-
-    // this.rotation_speed = 0;
-    // this.position.y = 0;
-    // this.velocity.y = 0;
-    // this.position.z = 0;
-    // this.velocity.z = 0;
-
-    // if (key % 2 == 0) {
-    //   // this.setRotationFromAxisAngle(new Vector3(0, 0, 0.1).normalize(), Math.PI/3);
-    //   this.position.x = -20;
-    //   this.velocity.x = 0.15;
-
-    // } else {
-    //   this.position.x = 20;
-    //   this.velocity.x = -0.15;
-    //   // this.position.z = 5;
-    //   this.position.y = 5;
-    // }
-
   }
+
 
   private updateBoundingBox(): void {
     if (!this._boundingBoxDirty) {
