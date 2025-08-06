@@ -12,6 +12,7 @@ import {
   OrthographicCamera,
   PerspectiveCamera,
   Scene,
+  Vector3,
   WebGLRenderer
 } from "three";
 
@@ -44,7 +45,6 @@ class Main {
 
   /** some materials for the cubes */
   private notCollidingMaterial: MeshNormalMaterial;
-  private collidingMaterial: MeshBasicMaterial;
 
   /** The collision detector */
   private collisionDetector: CollisionDetector;
@@ -86,20 +86,15 @@ class Main {
     this.controls.addEventListener("change", () => this.render());
 
     // Add the boundaries
-    this.bounds = this.createBoundaryMesh();
-    this.scene.add(this.bounds);
+    // this.bounds = this.createBoundaryMesh();
+    // this.scene.add(this.bounds);
+
+    this.notCollidingMaterial = new MeshNormalMaterial();
 
     // Add atoms.
     this.atoms = [];
-
-    this.notCollidingMaterial = new MeshNormalMaterial();
     this.createScenario();
-
-
-    this.collidingMaterial = new MeshBasicMaterial();
-
     this.collisionDetector = new CollisionDetector(this.atoms);
-
     this.render();
   }
 
@@ -113,10 +108,8 @@ class Main {
   }
 
   private createScenario() {
-    if (Config.scenario == 0) {
-      this.createAtoms();
-    } if (Config.scenario == 1) {
-      // A test to see two boxes colliding
+    if (Config.scenario < 2) {
+      // A simple tests of two large boxes colliding.
       Config.number_of_atoms = 2;
       Config.atom_size = 30;
       this.createAtoms();
@@ -126,18 +119,35 @@ class Main {
         atom.position.multiplyScalar(0);
         atom.setRotationFromEuler(new Euler(0, 0, 0));
         atom.rotation_speed = 0;
-        if (atom.key == 0) {
-          atom.position.x = -40;
-          atom.position.y = 10;
-          atom.velocity.x = 0.1;
-          atom.position.z = 10;
-        } else {
-          atom.position.x = 20;
-          atom.position.y = -10;
-        }
       });
 
+      this.atoms[0].position.x = -40;
+      this.atoms[0].velocity.x = 0.1;
+      this.atoms[1].position.x = 20;
+
+      if (Config.scenario == 1) {
+        this.atoms[0].position.y = 10;
+        this.atoms[0].position.z = 10;
+        this.atoms[1].position.y = -10;
+      }
     } else if (Config.scenario == 2) {
+      // Newton's cradle
+      Config.number_of_atoms = 5;
+      Config.atom_size = 15;
+      this.createAtoms();
+
+      this.atoms.forEach(atom => {
+        atom.velocity.multiplyScalar(0);
+        atom.position.multiplyScalar(0);
+        atom.setRotationFromEuler(new Euler(0, 0, 0));
+        atom.rotation_speed = 0;
+      });
+
+      this.atoms[0].position.x = -40;
+      this.atoms[0].velocity.x = 0.1;
+      this.atoms[1].position.x = 20;
+      this.atoms[2].position.x = 40;
+    } else if (Config.scenario == 3) {
       // One atom bouncing around a lattice.
       Config.number_of_atoms = 512;
       Config.atom_size = 2;
@@ -158,8 +168,11 @@ class Main {
           atom.position.z = z_rank / grid_size * Config.simulation_size - Config.simulation_size / 2 + Config.atom_size * 2;
           atom.velocity.multiplyScalar(0.0);
           atom.rotation_speed = 0;
+          atom.rotation.setFromVector3(new Vector3(0, 0, 0));
         }
       });
+    } else {
+      this.createAtoms();
     }
   }
 
@@ -189,10 +202,17 @@ class Main {
 
     for (const atom of this.atoms) {
       if (collidingAtomKeys.has(atom.key) && atom.velocity.length() > 0) {
-        atom.material = this.collidingMaterial;
+        atom.last_collision = 0;
+      }
+      if (atom.last_collision < 40) {
+        const material = new MeshBasicMaterial();
+        const bright = ((40 - atom.last_collision) / (40 * 4)) + 0.75;
+        material.color.set(new Color(bright, bright, bright))
+        atom.material = material;
       } else {
         atom.material = this.notCollidingMaterial;
       }
+      atom.last_collision += 1;
     }
 
     this.controls.update();

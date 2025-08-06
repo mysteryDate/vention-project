@@ -13,6 +13,7 @@ export default class Atom extends Mesh {
   public rotation_axis: Vector3;
   public rotation_speed: number;
   public velocity: Vector3;
+  public last_collision: number = Infinity;
 
   private _boundingBox: Box3 = new Box3();
   private _boundingBoxDirty: boolean = true;
@@ -28,7 +29,7 @@ export default class Atom extends Mesh {
     this.rotation_axis = randomVector3().normalize();
     this.rotation_speed = Math.random() / 100;
 
-    this.velocity = randomVector3().normalize().multiplyScalar(0.5);
+    this.velocity = randomVector3().normalize().multiplyScalar(0.1);
 
     this.position.copy(randomVector3().multiplyScalar(Config.simulation_size));
 
@@ -68,34 +69,22 @@ export default class Atom extends Mesh {
 
     // Bounce off the walls.
     if (this.position.x > Config.simulation_size / 2) {
-      // this.velocity.x *= -1;
-      // this.velocity.multiplyScalar(0.9);
-      this.velocity.x -= 0.1;
+      this.velocity.x *= -1;
     }
     if (this.position.y > Config.simulation_size / 2) {
-      // this.velocity.y *= -1;
-      // this.velocity.multiplyScalar(0.9);
-      this.velocity.y -= 0.1;
+      this.velocity.y *= -1;
     }
     if (this.position.z > Config.simulation_size / 2) {
-      // this.velocity.z *= -1;
-      // this.velocity.multiplyScalar(0.9);
-      this.velocity.z -= 0.1;
+      this.velocity.z *= -1;
     }
     if (this.position.x < -Config.simulation_size / 2) {
-      // this.velocity.x *= -1;
-      // this.velocity.multiplyScalar(0.9);
-      this.velocity.x += 0.1;
+      this.velocity.x *= -1;
     }
     if (this.position.y < -Config.simulation_size / 2) {
-      // this.velocity.y *= -1;
-      // this.velocity.multiplyScalar(0.9);
-      this.velocity.y += 0.1;
+      this.velocity.y *= -1;
     }
     if (this.position.z < -Config.simulation_size / 2) {
-      // this.velocity.z *= -1;
-      // this.velocity.multiplyScalar(0.9);
-      this.velocity.z += 0.1;
+      this.velocity.z *= -1;
     }
 
     this._boundingBoxDirty = true;
