@@ -33114,14 +33114,22 @@ if (typeof __THREE_DEVTOOLS__ !== 'undefined') {
   }));
   /* eslint-enable no-undef */
 }
-},{}],"src/config.json":[function(require,module,exports) {
-module.exports = {
+},{}],"src/config.ts":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+var Config = {
   "simulation_size": 100,
-  "atom_size": 2,
+  "atom_size": 1,
+  "number_of_atoms": 20,
   "atom_mass": 1,
   "restitution_coefficient": 1.0,
-  "number_of_atoms": 512
+  "scenario": 3,
+  "use_normal_material": false
 };
+exports.default = Config;
 },{}],"src/atom.ts":[function(require,module,exports) {
 "use strict";
 
@@ -33147,12 +33155,14 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 var three_1 = require("three");
-var config_json_1 = __importDefault(require("./config.json"));
+var config_1 = __importDefault(require("./config"));
 var Atom = /*#__PURE__*/function (_three_1$Mesh) {
-  function Atom(key, geometry, material) {
+  function Atom(key, material) {
     var _this;
     _classCallCheck(this, Atom);
+    var geometry = new three_1.BoxBufferGeometry(config_1.default.atom_size, config_1.default.atom_size, config_1.default.atom_size);
     _this = _callSuper(this, Atom, [geometry, material]);
+    _this.last_collision = Infinity;
     _this._boundingBox = new three_1.Box3();
     _this._boundingBoxDirty = true;
     _this.key = key;
@@ -33161,38 +33171,9 @@ var Atom = /*#__PURE__*/function (_three_1$Mesh) {
     }
     _this.rotation_axis = randomVector3().normalize();
     _this.rotation_speed = Math.random() / 100;
-    _this.velocity = randomVector3().normalize().multiplyScalar(0.5);
-    _this.position.copy(randomVector3().multiplyScalar(config_json_1.default.simulation_size));
+    _this.velocity = randomVector3().normalize().multiplyScalar(0.1);
+    _this.position.copy(randomVector3().multiplyScalar(config_1.default.simulation_size));
     _this.setRotationFromAxisAngle(randomVector3().normalize(), Math.PI * 2 * Math.random());
-    // Just a fun scenario
-    if (key < 1) {
-      // this.position.set(-Config.simulation_size / 2, -Config.simulation_size / 2, -Config.simulation_size / 2);
-    } else {
-      var grid_size = Math.ceil(Math.pow(config_json_1.default.number_of_atoms, 1 / 3));
-      var x_rank = _this.key % grid_size;
-      var y_rank = Math.floor(_this.key / grid_size) % grid_size;
-      var z_rank = Math.floor(_this.key / grid_size / grid_size);
-      _this.position.x = x_rank / grid_size * config_json_1.default.simulation_size - config_json_1.default.simulation_size / 2 + config_json_1.default.atom_size * 2;
-      _this.position.y = y_rank / grid_size * config_json_1.default.simulation_size - config_json_1.default.simulation_size / 2 + config_json_1.default.atom_size * 2;
-      _this.position.z = z_rank / grid_size * config_json_1.default.simulation_size - config_json_1.default.simulation_size / 2 + config_json_1.default.atom_size * 2;
-      _this.velocity.multiplyScalar(0.0);
-      _this.rotation_speed = 0;
-    }
-    // this.rotation_speed = 0;
-    // this.position.y = 0;
-    // this.velocity.y = 0;
-    // this.position.z = 0;
-    // this.velocity.z = 0;
-    // if (key % 2 == 0) {
-    //   // this.setRotationFromAxisAngle(new Vector3(0, 0, 0.1).normalize(), Math.PI/3);
-    //   this.position.x = -20;
-    //   this.velocity.x = 0.15;
-    // } else {
-    //   this.position.x = 20;
-    //   this.velocity.x = -0.15;
-    //   // this.position.z = 5;
-    //   this.position.y = 5;
-    // }
     return _this;
   }
   _inherits(Atom, _three_1$Mesh);
@@ -33252,42 +33233,30 @@ var Atom = /*#__PURE__*/function (_three_1$Mesh) {
       this.rotateOnAxis(this.rotation_axis, this.rotation_speed);
       this.position.add(this.velocity);
       // Bounce off the walls.
-      if (this.position.x > config_json_1.default.simulation_size / 2) {
-        // this.velocity.x *= -1;
-        // this.velocity.multiplyScalar(0.9);
-        this.velocity.x -= 0.1;
+      if (this.position.x > config_1.default.simulation_size / 2) {
+        this.velocity.x *= -1;
       }
-      if (this.position.y > config_json_1.default.simulation_size / 2) {
-        // this.velocity.y *= -1;
-        // this.velocity.multiplyScalar(0.9);
-        this.velocity.y -= 0.1;
+      if (this.position.y > config_1.default.simulation_size / 2) {
+        this.velocity.y *= -1;
       }
-      if (this.position.z > config_json_1.default.simulation_size / 2) {
-        // this.velocity.z *= -1;
-        // this.velocity.multiplyScalar(0.9);
-        this.velocity.z -= 0.1;
+      if (this.position.z > config_1.default.simulation_size / 2) {
+        this.velocity.z *= -1;
       }
-      if (this.position.x < -config_json_1.default.simulation_size / 2) {
-        // this.velocity.x *= -1;
-        // this.velocity.multiplyScalar(0.9);
-        this.velocity.x += 0.1;
+      if (this.position.x < -config_1.default.simulation_size / 2) {
+        this.velocity.x *= -1;
       }
-      if (this.position.y < -config_json_1.default.simulation_size / 2) {
-        // this.velocity.y *= -1;
-        // this.velocity.multiplyScalar(0.9);
-        this.velocity.y += 0.1;
+      if (this.position.y < -config_1.default.simulation_size / 2) {
+        this.velocity.y *= -1;
       }
-      if (this.position.z < -config_json_1.default.simulation_size / 2) {
-        // this.velocity.z *= -1;
-        // this.velocity.multiplyScalar(0.9);
-        this.velocity.z += 0.1;
+      if (this.position.z < -config_1.default.simulation_size / 2) {
+        this.velocity.z *= -1;
       }
       this._boundingBoxDirty = true;
     }
   }]);
 }(three_1.Mesh);
 exports.default = Atom;
-},{"three":"node_modules/three/build/three.module.js","./config.json":"src/config.json"}],"src/collision-detector.ts":[function(require,module,exports) {
+},{"three":"node_modules/three/build/three.module.js","./config":"src/config.ts"}],"src/collision-detector.ts":[function(require,module,exports) {
 "use strict";
 
 function _callSuper(t, o, e) { return o = _getPrototypeOf(o), _possibleConstructorReturn(t, _isNativeReflectConstruct() ? Reflect.construct(o, e || [], _getPrototypeOf(t).constructor) : o.apply(t, e)); }
@@ -33323,7 +33292,7 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 var three_1 = require("three");
-var config_json_1 = __importDefault(require("./config.json"));
+var config_1 = __importDefault(require("./config"));
 // https://en.wikipedia.org/wiki/Sweep_and_prune
 var SweepAndPrune = /*#__PURE__*/function () {
   function SweepAndPrune(atoms) {
@@ -33468,9 +33437,9 @@ var SATCollisionDetector = /*#__PURE__*/function () {
       var centerProjection = obb.center.dot(axis);
       // Calculate radius by projecting each local axis
       var radius = 0;
-      radius += Math.abs(obb.axes[0].dot(axis)) * config_json_1.default.atom_size / 2;
-      radius += Math.abs(obb.axes[1].dot(axis)) * config_json_1.default.atom_size / 2;
-      radius += Math.abs(obb.axes[2].dot(axis)) * config_json_1.default.atom_size / 2;
+      radius += Math.abs(obb.axes[0].dot(axis)) * config_1.default.atom_size / 2;
+      radius += Math.abs(obb.axes[1].dot(axis)) * config_1.default.atom_size / 2;
+      radius += Math.abs(obb.axes[2].dot(axis)) * config_1.default.atom_size / 2;
       return {
         min: centerProjection - radius,
         max: centerProjection + radius
@@ -33494,6 +33463,86 @@ var SATCollisionDetector = /*#__PURE__*/function () {
     key: "findCollisionInfo",
     value: function findCollisionInfo(atomA, atomB) {
       var _this3 = this;
+      function getWorldSpaceVertices(atom) {
+        /*
+               E-------F
+              /|      /|
+             / |     / |
+            A--|----B  |
+            |  G----|--H
+            | /     | /
+            |/      |/
+            C-------D
+            */
+        var vertices = [new three_1.Vector3(-0.5, 0.5, -0.5).multiplyScalar(config_1.default.atom_size),
+        // A
+        new three_1.Vector3(0.5, 0.5, -0.5).multiplyScalar(config_1.default.atom_size),
+        // B
+        new three_1.Vector3(-0.5, -0.5, -0.5).multiplyScalar(config_1.default.atom_size),
+        // C
+        new three_1.Vector3(0.5, -0.5, -0.5).multiplyScalar(config_1.default.atom_size),
+        // D
+        new three_1.Vector3(-0.5, 0.5, 0.5).multiplyScalar(config_1.default.atom_size),
+        // E
+        new three_1.Vector3(0.5, 0.5, 0.5).multiplyScalar(config_1.default.atom_size),
+        // F
+        new three_1.Vector3(-0.5, -0.5, 0.5).multiplyScalar(config_1.default.atom_size),
+        // G
+        new three_1.Vector3(0.5, -0.5, 0.5).multiplyScalar(config_1.default.atom_size) // H
+        ];
+        var worldVertices = [];
+        // Extract all vertex positions and transform to world coordinates
+        vertices.forEach(function (vertex, index) {
+          var vertexWorld = vertex.clone();
+          // Transform to world coordinates
+          vertexWorld.applyMatrix4(atom.matrixWorld);
+          var v = {
+            index: index,
+            position: vertexWorld
+          };
+          worldVertices.push(v);
+        });
+        return worldVertices;
+      }
+      function vertexIndexToFaces(index) {
+        // Look at the diagram in getWorldSpaceVertices.
+        // defining the faces in order as: [front (0), back (1), left (2), right (3), top (4), bottom (5)]
+        switch (index) {
+          case 0:
+            // A
+            return [0, 2, 4];
+          // front left top
+          case 1:
+            // B
+            return [0, 3, 4];
+          // front right top
+          case 2:
+            // C
+            return [0, 2, 5];
+          // front left bottom
+          case 3:
+            // D
+            return [0, 3, 5];
+          // front right bottom
+          case 4:
+            // E
+            return [1, 2, 4];
+          // back left top
+          case 5:
+            // F
+            return [1, 3, 4];
+          // back right top
+          case 6:
+            // G
+            return [1, 2, 5];
+          // back left bottom
+          case 7:
+            // H
+            return [1, 3, 5];
+          // back right bottom
+        }
+        return [-1, -1, -1];
+      }
       var obbA = this.meshToOBB(atomA);
       var obbB = this.meshToOBB(atomB);
       var minOverlap = Infinity;
@@ -33535,12 +33584,46 @@ var SATCollisionDetector = /*#__PURE__*/function () {
         _iterator2.f();
       }
       var contactPoint = obbA.center.clone().add(obbB.center).multiplyScalar(0.5);
+      // const isMatchingFaces = areMatchingFacesColliding(atomA, atomB, collisionNormal);
+      var verticesA = getWorldSpaceVertices(atomA);
+      var verticesB = getWorldSpaceVertices(atomB);
+      var vertexDistances = [];
+      verticesA.forEach(function (vertA) {
+        verticesB.forEach(function (vertB) {
+          var d = vertA.position.distanceTo(vertB.position);
+          vertexDistances.push({
+            indexA: vertA.index,
+            indexB: vertB.index,
+            distance: d
+          });
+        });
+      });
+      vertexDistances.sort(function (a, b) {
+        return a.distance - b.distance;
+      });
+      // Big assumption time: if the three closest vertices share a face, then the faces are colliding.
+      var sharedFaces = [];
+      var _loop2 = function _loop2(i) {
+        sharedFaces.push(vertexIndexToFaces(vertexDistances[i].indexA).filter(function (element) {
+          return vertexIndexToFaces(vertexDistances[i].indexB).includes(element);
+        }));
+      };
+      for (var i = 0; i < 3; i++) {
+        _loop2(i);
+      }
+      var sharedFace = sharedFaces[0].filter(function (e) {
+        return sharedFaces.slice(1).every(function (sublist) {
+          return sublist.includes(e);
+        });
+      });
+      var isMatchingFaces = sharedFace.length > 0;
       return {
         atomA: atomA,
         atomB: atomB,
         contactPoint: contactPoint,
         contactNormal: collisionNormal,
-        penetrationDepth: minOverlap
+        penetrationDepth: minOverlap,
+        isMatchingFaces: isMatchingFaces
       };
     }
     // Modify the velocity and rotation of colliding atoms.
@@ -33553,7 +33636,8 @@ var SATCollisionDetector = /*#__PURE__*/function () {
         atomB = collision.atomB,
         contactPoint = collision.contactPoint,
         contactNormal = collision.contactNormal,
-        penetrationDepth = collision.penetrationDepth;
+        penetrationDepth = collision.penetrationDepth,
+        isMatchingFaces = collision.isMatchingFaces;
       // Separate objects to prevent overlap.
       var separationVector = contactNormal.clone().multiplyScalar(penetrationDepth * 0.5);
       atomA.position.sub(separationVector);
@@ -33572,17 +33656,24 @@ var SATCollisionDetector = /*#__PURE__*/function () {
       var normalVelocity = relativeVelocity.dot(contactNormal);
       // Don't resolve if objects are separating
       if (normalVelocity < 0) return;
+      if (isMatchingFaces) {
+        atomA.velocity.multiplyScalar(0);
+        atomB.velocity.multiplyScalar(0);
+        atomA.rotation_speed = 0;
+        atomB.rotation_speed = 0;
+        return;
+      }
       // Collision moment arms.
       var rA_cross_n = new three_1.Vector3().crossVectors(rA, contactNormal);
       var rB_cross_n = new three_1.Vector3().crossVectors(rB, contactNormal);
       // This is already very complicated. Give them the moment of a inertia of a solid sphere.
-      var moment_of_inertia = 2 / 5 * config_json_1.default.atom_mass * Math.pow(config_json_1.default.atom_size / 2, 2);
-      var denominator = 2 / config_json_1.default.atom_mass + (rA_cross_n.lengthSq() + rB_cross_n.lengthSq()) / moment_of_inertia;
-      var impulseMagnitude = -(1 + config_json_1.default.restitution_coefficient) * normalVelocity / denominator;
+      var moment_of_inertia = 2 / 5 * config_1.default.atom_mass * Math.pow(config_1.default.atom_size / 2, 2);
+      var denominator = 2 / config_1.default.atom_mass + (rA_cross_n.lengthSq() + rB_cross_n.lengthSq()) / moment_of_inertia;
+      var impulseMagnitude = -(1 + config_1.default.restitution_coefficient) * normalVelocity / denominator;
       var impulse = contactNormal.clone().multiplyScalar(impulseMagnitude);
       // Apply linear impulse
-      atomA.velocity.add(impulse.clone().multiplyScalar(1 / config_json_1.default.atom_mass));
-      atomB.velocity.sub(impulse.clone().multiplyScalar(1 / config_json_1.default.atom_mass));
+      atomA.velocity.add(impulse.clone().multiplyScalar(1 / config_1.default.atom_mass));
+      atomB.velocity.sub(impulse.clone().multiplyScalar(1 / config_1.default.atom_mass));
       // Apply angular impulse
       var angularImpulseA = new three_1.Vector3().crossVectors(rA, impulse).multiplyScalar(1 / moment_of_inertia);
       var angularImpulseB = new three_1.Vector3().crossVectors(rB, impulse).multiplyScalar(-1 / moment_of_inertia);
@@ -33646,7 +33737,7 @@ var CollisionDetector = /*#__PURE__*/function (_SweepAndPrune) {
   }]);
 }(SweepAndPrune);
 exports.default = CollisionDetector;
-},{"three":"node_modules/three/build/three.module.js","./config.json":"src/config.json"}],"node_modules/three/examples/jsm/controls/OrbitControls.js":[function(require,module,exports) {
+},{"three":"node_modules/three/build/three.module.js","./config":"src/config.ts"}],"node_modules/three/examples/jsm/controls/OrbitControls.js":[function(require,module,exports) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -34413,7 +34504,7 @@ var stats_js_1 = __importDefault(require("stats.js"));
 var three_1 = require("three");
 var atom_1 = __importDefault(require("./atom"));
 var collision_detector_1 = __importDefault(require("./collision-detector"));
-var config_json_1 = __importDefault(require("./config.json"));
+var config_1 = __importDefault(require("./config"));
 var OrbitControls_1 = require("three/examples/jsm/controls/OrbitControls");
 var Main = /*#__PURE__*/function () {
   function Main() {
@@ -34459,17 +34550,114 @@ var Main = /*#__PURE__*/function () {
       // Add the boundaries
       this.bounds = this.createBoundaryMesh();
       this.scene.add(this.bounds);
+      if (config_1.default.use_normal_material) {
+        this.notCollidingMaterial = new three_1.MeshNormalMaterial();
+      } else {
+        this.notCollidingMaterial = [new three_1.MeshStandardMaterial({
+          color: 0xff0000
+        }),
+        // Red: Right face
+        new three_1.MeshStandardMaterial({
+          color: 0x00ff00
+        }),
+        // Green: Left face
+        new three_1.MeshStandardMaterial({
+          color: 0x0000ff
+        }),
+        // Blue: Top face
+        new three_1.MeshStandardMaterial({
+          color: 0xffff00
+        }),
+        // Yellow: Bottom face
+        new three_1.MeshStandardMaterial({
+          color: 0xff00ff
+        }),
+        // Magenta: Front face
+        new three_1.MeshStandardMaterial({
+          color: 0x00ffff
+        }) // Cyan: Back face
+        ];
+      }
+      // Add lights to the scene (needed for MeshStandardMaterial)
+      var ambientLight = new three_1.AmbientLight(0xffffff, 0.6);
+      this.scene.add(ambientLight);
       // Add atoms.
       this.atoms = [];
-      var geometry = new three_1.BoxBufferGeometry(config_json_1.default.atom_size, config_json_1.default.atom_size, config_json_1.default.atom_size);
-      this.notCollidingMaterial = new three_1.MeshNormalMaterial();
-      for (var i = 0; i < config_json_1.default.number_of_atoms; i++) {
-        this.atoms.push(new atom_1.default(i, geometry, this.notCollidingMaterial));
-        this.scene.add(this.atoms[i]);
-      }
-      this.collidingMaterial = new three_1.MeshBasicMaterial();
+      this.createScenario();
       this.collisionDetector = new collision_detector_1.default(this.atoms);
       this.render();
+    }
+  }, {
+    key: "createAtoms",
+    value: function createAtoms() {
+      for (var i = 0; i < config_1.default.number_of_atoms; i++) {
+        this.atoms.push(new atom_1.default(i, this.notCollidingMaterial));
+        this.scene.add(this.atoms[i]);
+      }
+    }
+  }, {
+    key: "createScenario",
+    value: function createScenario() {
+      if (config_1.default.scenario < 2) {
+        // A simple tests of two large boxes colliding.
+        config_1.default.number_of_atoms = 2;
+        config_1.default.atom_size = 30;
+        this.createAtoms();
+        this.atoms.forEach(function (atom) {
+          atom.velocity.multiplyScalar(0);
+          atom.position.multiplyScalar(0);
+          atom.setRotationFromEuler(new three_1.Euler(0, 0, 0));
+          atom.rotation_speed = 0;
+        });
+        this.atoms[0].position.x = -40;
+        this.atoms[0].velocity.x = 0.1;
+        this.atoms[1].position.x = 20;
+        // this.atoms[0].rotateZ(Math.PI);
+        if (config_1.default.scenario == 1) {
+          this.atoms[0].position.y = 10;
+          this.atoms[0].rotateY(Math.PI / 2);
+          this.atoms[0].position.z = 10;
+          this.atoms[1].position.y = -10;
+        }
+      } else if (config_1.default.scenario == 2) {
+        // Newton's cradle
+        config_1.default.number_of_atoms = 5;
+        config_1.default.atom_size = 15;
+        this.createAtoms();
+        this.atoms.forEach(function (atom) {
+          atom.velocity.multiplyScalar(0);
+          atom.position.multiplyScalar(0);
+          atom.setRotationFromEuler(new three_1.Euler(0, 0, 0));
+          atom.rotation_speed = 0;
+        });
+        this.atoms[0].position.x = -40;
+        this.atoms[0].velocity.x = 0.1;
+        this.atoms[1].position.x = 20;
+        this.atoms[2].position.x = 40;
+      } else if (config_1.default.scenario == 3) {
+        // One atom bouncing around a lattice.
+        config_1.default.number_of_atoms = 512;
+        config_1.default.atom_size = 2;
+        this.createAtoms();
+        this.atoms.forEach(function (atom) {
+          if (atom.key < 5) {
+            atom.velocity.normalize().multiplyScalar(0.5);
+          } else {
+            var grid_size = Math.ceil(Math.pow(config_1.default.number_of_atoms, 1 / 3));
+            var x_rank = atom.key % grid_size;
+            var y_rank = Math.floor(atom.key / grid_size) % grid_size;
+            var z_rank = Math.floor(atom.key / grid_size / grid_size);
+            atom.position.x = x_rank / grid_size * config_1.default.simulation_size - config_1.default.simulation_size / 2 + config_1.default.atom_size * 2;
+            atom.position.y = y_rank / grid_size * config_1.default.simulation_size - config_1.default.simulation_size / 2 + config_1.default.atom_size * 2;
+            atom.position.z = z_rank / grid_size * config_1.default.simulation_size - config_1.default.simulation_size / 2 + config_1.default.atom_size * 2;
+            atom.velocity.multiplyScalar(0.0);
+            atom.rotation_speed = 0;
+            atom.rotation.setFromVector3(new three_1.Vector3(0, 0, 0));
+          }
+        });
+      } else {
+        this.createAtoms();
+      }
     }
     /** Renders the scene */
   }, {
@@ -34518,10 +34706,17 @@ var Main = /*#__PURE__*/function () {
         for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
           var _atom = _step3.value;
           if (collidingAtomKeys.has(_atom.key) && _atom.velocity.length() > 0) {
-            _atom.material = this.collidingMaterial;
+            _atom.last_collision = 0;
+          }
+          if (_atom.last_collision < 40) {
+            var material = new three_1.MeshBasicMaterial();
+            var bright = (40 - _atom.last_collision) / (40 * 4) + 0.75;
+            material.color.set(new three_1.Color(bright, bright, bright));
+            _atom.material = material;
           } else {
             _atom.material = this.notCollidingMaterial;
           }
+          _atom.last_collision += 1;
         }
       } catch (err) {
         _iterator3.e(err);
@@ -34546,7 +34741,7 @@ var Main = /*#__PURE__*/function () {
   }, {
     key: "createBoundaryMesh",
     value: function createBoundaryMesh() {
-      var geometry = new three_1.BoxBufferGeometry(config_json_1.default.simulation_size, config_json_1.default.simulation_size, config_json_1.default.simulation_size);
+      var geometry = new three_1.BoxBufferGeometry(config_1.default.simulation_size, config_1.default.simulation_size, config_1.default.simulation_size);
       var edges = new three_1.EdgesGeometry(geometry);
       var lineMaterial = new three_1.LineBasicMaterial({
         color: 0x00ff00,
@@ -34558,7 +34753,7 @@ var Main = /*#__PURE__*/function () {
   }]);
 }();
 var main = new Main();
-},{"stats.js":"node_modules/stats.js/build/stats.min.js","three":"node_modules/three/build/three.module.js","./atom":"src/atom.ts","./collision-detector":"src/collision-detector.ts","./config.json":"src/config.json","three/examples/jsm/controls/OrbitControls":"node_modules/three/examples/jsm/controls/OrbitControls.js"}],"node_modules/parcel-bundler/src/builtins/hmr-runtime.js":[function(require,module,exports) {
+},{"stats.js":"node_modules/stats.js/build/stats.min.js","three":"node_modules/three/build/three.module.js","./atom":"src/atom.ts","./collision-detector":"src/collision-detector.ts","./config":"src/config.ts","three/examples/jsm/controls/OrbitControls":"node_modules/three/examples/jsm/controls/OrbitControls.js"}],"node_modules/parcel-bundler/src/builtins/hmr-runtime.js":[function(require,module,exports) {
 var global = arguments[3];
 var OVERLAY_ID = '__parcel__error__overlay__';
 var OldModule = module.bundle.Module;
@@ -34583,7 +34778,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "56578" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "59167" + '/');
   ws.onmessage = function (event) {
     checkedAssets = {};
     assetsToAccept = [];
