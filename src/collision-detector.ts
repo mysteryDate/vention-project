@@ -103,6 +103,7 @@ interface CollisionInfo {
   contactPoint: Vector3;
   contactNormal: Vector3;
   penetrationDepth: number;
+  isMatchingFaces: boolean;
 }
 
 // Separating axis theorem. Like shining a flashlight perpendicular to each axis of each atom (3 + 3 = 6 total), and
@@ -167,6 +168,30 @@ class SATCollisionDetector {
   }
 
   private static findCollisionInfo(atomA: Atom, atomB: Atom): CollisionInfo | null {
+    interface vert {
+      index: number;
+      position: Vector3;
+    }
+    function getCubeVertices(atom: Atom) {
+        const geometry = atom.geometry;
+        const vertices = [];
+
+        // Get position attribute from geometry
+        const positions = geometry.attributes.position;
+
+        // Extract all vertex positions and transform to world coordinates
+        for (let i = 0; i < positions.count; i++) {
+            const vertex = new Vector3();
+            vertex.fromBufferAttribute(positions, i);
+
+            // Transform to world coordinates
+            vertex.applyMatrix4(atom.matrixWorld);
+            vertices.push({i, });
+        }
+
+        return vertices;
+    }
+
     const obbA = this.meshToOBB(atomA);
     const obbB = this.meshToOBB(atomB);
 
@@ -209,12 +234,17 @@ class SATCollisionDetector {
       .add(obbB.center)
       .multiplyScalar(0.5);
 
+    // const isMatchingFaces = areMatchingFacesColliding(atomA, atomB, collisionNormal);
+    const vertices = getCubeVertices(atomA);
+    const isMatchingFaces = false;
+
     return {
       atomA,
       atomB,
       contactPoint,
       contactNormal: collisionNormal,
-      penetrationDepth: minOverlap
+      penetrationDepth: minOverlap,
+      isMatchingFaces,
     };
   }
 
@@ -222,7 +252,7 @@ class SATCollisionDetector {
   // https://www.cs.ubc.ca/~rhodin/2020_2021_CPSC_427/lectures/D_CollisionTutorial.pdf
   // https://en.wikipedia.org/wiki/Collision_response#Impulse-based_contact_model
   private static resolveCollision(collision: CollisionInfo): void {
-    const {atomA, atomB, contactPoint, contactNormal, penetrationDepth} = collision;
+    const {atomA, atomB, contactPoint, contactNormal, penetrationDepth, isMatchingFaces} = collision;
 
     // Separate objects to prevent overlap.
     const separationVector = contactNormal.clone().multiplyScalar(penetrationDepth * 0.5);
@@ -247,6 +277,12 @@ class SATCollisionDetector {
 
     // Don't resolve if objects are separating
     if (normalVelocity < 0) return;
+
+    if (isMatchingFaces) {
+      atomA.velocity.multiplyScalar(0);
+      atomB.velocity.multiplyScalar(0);
+      return;
+    }
 
     // Collision moment arms.
     const rA_cross_n = new Vector3().crossVectors(rA, contactNormal);

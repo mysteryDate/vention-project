@@ -1,6 +1,6 @@
 import {
   Box3,
-  BufferGeometry,
+  BoxBufferGeometry,
   Material,
   Mesh,
   Vector3
@@ -18,7 +18,9 @@ export default class Atom extends Mesh {
   private _boundingBox: Box3 = new Box3();
   private _boundingBoxDirty: boolean = true;
 
-  constructor(key: number, geometry: BufferGeometry, material: Material) {
+  constructor(key: number, material: Material) {
+    const geometry = new BoxBufferGeometry(Config.atom_size, Config.atom_size, Config.atom_size);
+
     super(geometry, material);
     this.key = key;
 
@@ -35,7 +37,6 @@ export default class Atom extends Mesh {
 
     this.setRotationFromAxisAngle(randomVector3().normalize(), Math.PI * 2 * Math.random());
   }
-
 
   private updateBoundingBox(): void {
     if (!this._boundingBoxDirty) {

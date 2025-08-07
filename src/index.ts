@@ -1,5 +1,6 @@
 import Stats from "stats.js";
 import {
+  AmbientLight,
   BoxBufferGeometry,
   Color,
   EdgesGeometry,
@@ -9,6 +10,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshNormalMaterial,
+  MeshStandardMaterial,
   OrthographicCamera,
   PerspectiveCamera,
   Scene,
@@ -44,7 +46,7 @@ class Main {
   private bounds: Mesh;
 
   /** some materials for the cubes */
-  private notCollidingMaterial: MeshNormalMaterial;
+  private notCollidingMaterial: any;
 
   /** The collision detector */
   private collisionDetector: CollisionDetector;
@@ -86,10 +88,26 @@ class Main {
     this.controls.addEventListener("change", () => this.render());
 
     // Add the boundaries
-    // this.bounds = this.createBoundaryMesh();
-    // this.scene.add(this.bounds);
+    this.bounds = this.createBoundaryMesh();
+    this.scene.add(this.bounds);
 
-    this.notCollidingMaterial = new MeshNormalMaterial();
+
+    if (Config.use_normal_material) {
+      this.notCollidingMaterial = new MeshNormalMaterial();
+    } else {
+      this.notCollidingMaterial = [
+          new MeshStandardMaterial({ color: 0xff0000 }), // Red: Right face
+          new MeshStandardMaterial({ color: 0x00ff00 }), // Green: Left face
+          new MeshStandardMaterial({ color: 0x0000ff }), // Blue: Top face
+          new MeshStandardMaterial({ color: 0xffff00 }), // Yellow: Bottom face
+          new MeshStandardMaterial({ color: 0xff00ff }), // Magenta: Front face
+          new MeshStandardMaterial({ color: 0x00ffff })  // Cyan: Back face
+      ];
+    }
+
+    // Add lights to the scene (needed for MeshStandardMaterial)
+    const ambientLight = new AmbientLight(0xffffff, 0.6);
+    this.scene.add(ambientLight);
 
     // Add atoms.
     this.atoms = [];
@@ -99,9 +117,8 @@ class Main {
   }
 
   private createAtoms() {
-    const geometry = new BoxBufferGeometry(Config.atom_size, Config.atom_size, Config.atom_size);
     for (let i = 0; i < Config.number_of_atoms; i++) {
-      this.atoms.push(new Atom(i, geometry, this.notCollidingMaterial));
+      this.atoms.push(new Atom(i, this.notCollidingMaterial));
       this.scene.add(this.atoms[i]);
     }
 
@@ -127,6 +144,7 @@ class Main {
 
       if (Config.scenario == 1) {
         this.atoms[0].position.y = 10;
+        this.atoms[0].rotateY(Math.PI/2);
         this.atoms[0].position.z = 10;
         this.atoms[1].position.y = -10;
       }
