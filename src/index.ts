@@ -142,6 +142,8 @@ class Main {
       this.atoms[0].velocity.x = 0.1;
       this.atoms[1].position.x = 20;
 
+      // this.atoms[0].rotateZ(Math.PI);
+
       if (Config.scenario == 1) {
         this.atoms[0].position.y = 10;
         this.atoms[0].rotateY(Math.PI/2);
@@ -173,7 +175,7 @@ class Main {
       this.createAtoms();
 
       this.atoms.forEach(atom => {
-        if (atom.key < 1) {
+        if (atom.key < 5) {
           atom.velocity.normalize().multiplyScalar(0.5);
         } else {
           const grid_size = Math.ceil(Math.pow(Config.number_of_atoms, 1 / 3));

@@ -1,6 +1,6 @@
 let Config = {
   "simulation_size": 100,
-  "atom_size": 10,
+  "atom_size": 1,
   "number_of_atoms": 20,
   "atom_mass": 1,
   "restitution_coefficient": 1.0,
