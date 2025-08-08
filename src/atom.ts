@@ -18,6 +18,10 @@ export default class Atom extends Mesh {
   private _boundingBox: Box3 = new Box3();
   private _boundingBoxDirty: boolean = true;
 
+  public molecule_id: number = -1;
+  public is_in_molecule: boolean = false;
+  public molecule_mass: number = Config.atom_mass;
+
   constructor(key: number, material: Material) {
     const geometry = new BoxBufferGeometry(Config.atom_size, Config.atom_size, Config.atom_size);
 
@@ -31,7 +35,7 @@ export default class Atom extends Mesh {
     this.rotation_axis = randomVector3().normalize();
     this.rotation_speed = Math.random() / 100;
 
-    this.velocity = randomVector3().normalize().multiplyScalar(0.1);
+    this.velocity = randomVector3().normalize().multiplyScalar(Config.velocity_multiplier);
 
     this.position.copy(randomVector3().multiplyScalar(Config.simulation_size));
 
@@ -65,29 +69,32 @@ export default class Atom extends Mesh {
   public getMaxZ(): number {return this.getBoundingBox().max.z;}
 
   public update(): void {
-    this.rotateOnAxis(this.rotation_axis, this.rotation_speed);
-    this.position.add(this.velocity);
-
-    // Bounce off the walls.
-    if (this.position.x > Config.simulation_size / 2) {
-      this.velocity.x *= -1;
-    }
-    if (this.position.y > Config.simulation_size / 2) {
-      this.velocity.y *= -1;
-    }
-    if (this.position.z > Config.simulation_size / 2) {
-      this.velocity.z *= -1;
-    }
-    if (this.position.x < -Config.simulation_size / 2) {
-      this.velocity.x *= -1;
-    }
-    if (this.position.y < -Config.simulation_size / 2) {
-      this.velocity.y *= -1;
-    }
-    if (this.position.z < -Config.simulation_size / 2) {
-      this.velocity.z *= -1;
+    if (this.molecule_id == -1) {
+      this.rotateOnAxis(this.rotation_axis, this.rotation_speed);
+      this.position.add(this.velocity);
     }
 
     this._boundingBoxDirty = true;
+    const bb = this.getBoundingBox();
+    // Bounce off the walls.
+    if (bb.max.x > Config.simulation_size / 2) {
+      this.velocity.x *= -1;
+    }
+    if (bb.max.y > Config.simulation_size / 2) {
+      this.velocity.y *= -1;
+    }
+    if (bb.max.z > Config.simulation_size / 2) {
+      this.velocity.z *= -1;
+    }
+    if (bb.min.x < -Config.simulation_size / 2) {
+      this.velocity.x *= -1;
+    }
+    if (bb.min.y < -Config.simulation_size / 2) {
+      this.velocity.y *= -1;
+    }
+    if (bb.min.z < -Config.simulation_size / 2) {
+      this.velocity.z *= -1;
+    }
+
   }
 }

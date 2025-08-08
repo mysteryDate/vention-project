@@ -1,8 +1,9 @@
 import {Matrix3, Vector3} from "three";
 import Atom from "./atom";
 import Config from "./config";
+import Molecule from "./molecule";
 
-export type CollisionPair = [Atom, Atom];
+export type CollisionPair = [Atom, Atom, boolean];
 type Axis = {
   dimension: string;
   getMin: (atom: Atom) => number;
@@ -15,7 +16,7 @@ class SweepAndPrune {
   private _sortedAxes: Map<string, Atom[]>; // Atoms stored sorted by x, y, and z axis.
   private _axes: Axis[];
 
-  constructor(atoms: Atom[]) {
+  constructor(atoms: Atom[], molecules: Molecule[]) {
     this._atoms = atoms;
     this._sortedAxes = new Map();
 
@@ -82,7 +83,11 @@ class SweepAndPrune {
         const cubeA = this._atoms.find(atom => atom.key === keyA);
         const cubeB = this._atoms.find(atom => atom.key === keyB);
         if (cubeA && cubeB) {
-          collisionPairs.push([cubeA, cubeB]);
+          if ((cubeA.molecule_id == cubeB.molecule_id) && cubeA.is_in_molecule) {
+            // Ignore cubes colliding within their own molecules.
+          } else {
+            collisionPairs.push([cubeA, cubeB, false]);
+          }
         }
       }
     }
@@ -115,10 +120,12 @@ class SATCollisionDetector {
 
   private static meshToOBB(atom: Atom): OrientedBoundingBox {
     // Get the world position.
-    const center = atom.position.clone();
+    atom.updateMatrixWorld(true);
+    const center = new Vector3();
+    atom.getWorldPosition(center);
 
     // Extract rotation matrix from the mesh's world matrix
-    atom.updateMatrixWorld(true);
+    // atom.updateMatrixWorld(true);
     const rotationMatrix = new Matrix3().setFromMatrix4(atom.matrixWorld);
 
     // Get the local axes from rotation matrix
@@ -238,6 +245,7 @@ class SATCollisionDetector {
     const obbA = this.meshToOBB(atomA);
     const obbB = this.meshToOBB(atomB);
 
+
     let minOverlap = Infinity;
     let collisionNormal = new Vector3();
 
@@ -251,6 +259,8 @@ class SATCollisionDetector {
           .filter(cross => cross.length() > this.EPSILON).map(cross => cross.normalize())
       )
     ];
+
+
 
     for (const axis of testAxes) {
       const result = this.testSeparatingAxis(obbA, obbB, axis);
@@ -306,6 +316,7 @@ class SATCollisionDetector {
     const sharedFace = sharedFaces[0].filter(e => sharedFaces.slice(1).every(sublist => sublist.includes(e)) );
     const isMatchingFaces = sharedFace.length > 0;
 
+
     return {
       atomA,
       atomB,
@@ -346,14 +357,6 @@ class SATCollisionDetector {
     // Don't resolve if objects are separating
     if (normalVelocity < 0) return;
 
-    if (isMatchingFaces) {
-      atomA.velocity.multiplyScalar(0);
-      atomB.velocity.multiplyScalar(0);
-      atomA.rotation_speed = 0;
-      atomB.rotation_speed = 0;
-      return;
-    }
-
     // Collision moment arms.
     const rA_cross_n = new Vector3().crossVectors(rA, contactNormal);
     const rB_cross_n = new Vector3().crossVectors(rB, contactNormal);
@@ -388,20 +391,21 @@ class SATCollisionDetector {
     atomB.rotation_axis = newAngularVelB.normalize();
   }
 
-  public static testAndResolveCollision(atomA: Atom, atomB: Atom): boolean {
+  public static testAndResolveCollision(atomA: Atom, atomB: Atom): {isColliding: boolean, isSticking: boolean } {
     const collisionInfo = this.findCollisionInfo(atomA, atomB);
 
     if(collisionInfo) {
       this.resolveCollision(collisionInfo);
-      return true;
+      // if (!collisionInfo.isMatchingFaces) {
+      // }
+      return { isColliding: true, isSticking: collisionInfo.isMatchingFaces };
     }
 
-    return false;
+    return { isColliding: false, isSticking: false } ;
   }
 }
 
 export default class CollisionDetector extends SweepAndPrune {
-
   detectCollisions(): CollisionPair[] {
     // First, get potential collision pairs from sweep-and-prune (broad phase)
     const broadPhaseCollisions = this.detectSAPCollisions();
@@ -412,10 +416,12 @@ export default class CollisionDetector extends SweepAndPrune {
     // TODO: don't break law of demeter
     const preciseCollisions: CollisionPair[] = [];
     for (const [atomA, atomB] of broadPhaseCollisions) {
-      if (SATCollisionDetector.testAndResolveCollision(atomA, atomB)) {
-        preciseCollisions.push([atomA, atomB]);
+      const {isColliding, isSticking} = SATCollisionDetector.testAndResolveCollision(atomA, atomB);
+      if (isColliding) {
+        preciseCollisions.push([atomA, atomB, isSticking]);
       }
     }
+
 
     return preciseCollisions;
   }

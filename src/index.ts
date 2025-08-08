@@ -23,6 +23,7 @@ import CollisionDetector, {CollisionPair} from "./collision-detector";
 import Config from "./config";
 
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
+import Molecule from "./molecule";
 
 class Main {
   /** The scene */
@@ -41,6 +42,7 @@ class Main {
   private stats: Stats;
 
   private atoms: Atom[];
+  private molecules: { [key: number]: Molecule};
 
   /** The boundaries of the simulation */
   private bounds: Mesh;
@@ -111,8 +113,9 @@ class Main {
 
     // Add atoms.
     this.atoms = [];
+    this.molecules = [];
     this.createScenario();
-    this.collisionDetector = new CollisionDetector(this.atoms);
+    this.collisionDetector = new CollisionDetector(this.atoms, this.molecules);
     this.render();
   }
 
@@ -128,7 +131,7 @@ class Main {
     if (Config.scenario < 2) {
       // A simple tests of two large boxes colliding.
       Config.number_of_atoms = 2;
-      Config.atom_size = 30;
+      Config.atom_size = 20;
       this.createAtoms();
 
       this.atoms.forEach(atom => {
@@ -138,11 +141,14 @@ class Main {
         atom.rotation_speed = 0;
       });
 
-      this.atoms[0].position.x = -40;
+      this.atoms[0].position.x = -20;
+      this.atoms[0].rotation_axis = new Vector3(0, 1, 0);
+      // this.atoms[0].rotation_speed = 0.1;
       this.atoms[0].velocity.x = 0.1;
-      this.atoms[1].position.x = 20;
+      this.atoms[1].position.x = 10;
 
-      // this.atoms[0].rotateZ(Math.PI);
+      this.atoms[0].rotateZ(Math.PI);
+      this.atoms[0].rotateX(Math.PI);
 
       if (Config.scenario == 1) {
         this.atoms[0].position.y = 10;
@@ -152,7 +158,7 @@ class Main {
       }
     } else if (Config.scenario == 2) {
       // Newton's cradle
-      Config.number_of_atoms = 5;
+      Config.number_of_atoms = 4;
       Config.atom_size = 15;
       this.createAtoms();
 
@@ -168,6 +174,26 @@ class Main {
       this.atoms[1].position.x = 20;
       this.atoms[2].position.x = 40;
     } else if (Config.scenario == 3) {
+      // Stick test
+      Config.number_of_atoms = 3;
+      Config.atom_size = 10;
+      this.createAtoms();
+
+      this.atoms.forEach(atom => {
+        atom.velocity.multiplyScalar(0);
+        atom.position.multiplyScalar(0);
+        atom.setRotationFromEuler(new Euler(0, 0, 0));
+        atom.rotation_speed = 0;
+      });
+
+      this.atoms[0].position.x = -30;
+      this.atoms[0].velocity.x = 0.1;
+      this.atoms[1].position.x = -10;
+      this.atoms[2].position.x = 40;
+
+      this.atoms[0].rotateZ(Math.PI);
+      this.atoms[2].rotateZ(Math.PI);
+    } else if (Config.scenario == 4) {
       // One atom bouncing around a lattice.
       Config.number_of_atoms = 512;
       Config.atom_size = 2;
@@ -210,6 +236,9 @@ class Main {
     for (const atom of this.atoms) {
       atom.update();
     }
+    for (const molecule of Object.values(this.molecules)) {
+      molecule.update();
+    }
 
     // Collisions
     const collisionPairs: CollisionPair[] = this.collisionDetector.detectCollisions();
@@ -233,6 +262,53 @@ class Main {
         atom.material = this.notCollidingMaterial;
       }
       atom.last_collision += 1;
+    }
+
+    for (const pair of collisionPairs) {
+      if (pair[2]) { // Sticky collision
+        if (!pair[1].is_in_molecule && !pair[0].is_in_molecule) {
+          const mol = new Molecule(pair[0], pair[1], this.scene);
+          // this.scene.remove(pair[0]);
+          // this.scene.remove(pair[1]);
+          pair[0].molecule_id = mol.id;
+          pair[1].molecule_id = mol.id;
+          pair[0].is_in_molecule = true;
+          pair[1].is_in_molecule = true;
+          this.scene.add(mol.pivotGroup);
+          // this.scene.add(mol.boxHelper);
+
+          this.molecules[mol.id] = mol;
+        } else if (pair[0].is_in_molecule && !pair[1].is_in_molecule) {
+          const mol = this.molecules[pair[0].molecule_id]!;
+
+          mol.addAtom(pair[1]);
+          // this.scene.remove(pair[1]);
+          pair[1].molecule_id = mol.id;
+          pair[1].is_in_molecule = true;
+          // this.scene.add(mol);
+          // this.scene.remove(mol.boxHelper);
+          // this.scene.add(mol.boxHelper);
+        } else if (pair[1].is_in_molecule && !pair[0].is_in_molecule) {
+          const mol = this.molecules[pair[1].molecule_id]!;
+
+          mol.addAtom(pair[0]);
+          // this.scene.remove(pair[0]);
+          pair[0].molecule_id = mol.id;
+          pair[0].is_in_molecule = true;
+          // this.scene.add(mol);
+          // this.scene.add(mol.boxHelper);
+        } else if (pair[1].is_in_molecule && pair[0].is_in_molecule) {
+          const mol = this.molecules[pair[0].molecule_id]!;
+          const mol2 = this.molecules[pair[1].molecule_id]!;
+
+          if (mol && mol2) {
+            mol.addMolecule(mol2);
+            // this.scene.remove(mol2);
+
+            delete this.molecules[mol2.id];
+          }
+        }
+      }
     }
 
     this.controls.update();
