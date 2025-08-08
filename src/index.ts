@@ -279,7 +279,7 @@ class Main {
 
           this.molecules[mol.id] = mol;
         } else if (pair[0].is_in_molecule && !pair[1].is_in_molecule) {
-          const mol = this.molecules[pair[0].molecule_id]!;
+          const mol = pair[0].molecule;
 
           mol.addAtom(pair[1]);
           // this.scene.remove(pair[1]);
@@ -289,7 +289,8 @@ class Main {
           // this.scene.remove(mol.boxHelper);
           // this.scene.add(mol.boxHelper);
         } else if (pair[1].is_in_molecule && !pair[0].is_in_molecule) {
-          const mol = this.molecules[pair[1].molecule_id]!;
+          // const mol = this.molecules[pair[1].molecule_id]!;
+          const mol = pair[1].molecule;
 
           mol.addAtom(pair[0]);
           // this.scene.remove(pair[0]);
@@ -298,8 +299,8 @@ class Main {
           // this.scene.add(mol);
           // this.scene.add(mol.boxHelper);
         } else if (pair[1].is_in_molecule && pair[0].is_in_molecule) {
-          const mol = this.molecules[pair[0].molecule_id]!;
-          const mol2 = this.molecules[pair[1].molecule_id]!;
+          const mol = pair[0].molecule;
+          const mol2 = pair[1].molecule;
 
           if (mol && mol2) {
             mol.addMolecule(mol2);

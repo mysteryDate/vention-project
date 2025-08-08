@@ -109,6 +109,7 @@ interface CollisionInfo {
   contactNormal: Vector3;
   penetrationDepth: number;
   isMatchingFaces: boolean;
+  distance: number;
 }
 
 // Separating axis theorem. Like shining a flashlight perpendicular to each axis of each atom (3 + 3 = 6 total), and
@@ -316,6 +317,7 @@ class SATCollisionDetector {
     const sharedFace = sharedFaces[0].filter(e => sharedFaces.slice(1).every(sublist => sublist.includes(e)) );
     const isMatchingFaces = sharedFace.length > 0;
 
+    const distance = new Vector3().subVectors(atomA.position, atomB.position).length();
 
     return {
       atomA,
@@ -323,7 +325,8 @@ class SATCollisionDetector {
       contactPoint,
       contactNormal: collisionNormal,
       penetrationDepth: minOverlap,
-      isMatchingFaces,
+      isMatchingFaces: isMatchingFaces,
+      distance: distance,
     };
   }
 
@@ -331,24 +334,35 @@ class SATCollisionDetector {
   // https://www.cs.ubc.ca/~rhodin/2020_2021_CPSC_427/lectures/D_CollisionTutorial.pdf
   // https://en.wikipedia.org/wiki/Collision_response#Impulse-based_contact_model
   private static resolveCollision(collision: CollisionInfo): void {
-    const {atomA, atomB, contactPoint, contactNormal, penetrationDepth, isMatchingFaces} = collision;
+    const {atomA, atomB, contactPoint, contactNormal, penetrationDepth} = collision;
+
+
+    // Get individual masses
+
+    const objA = atomA.is_in_molecule ? atomA.molecule : atomA;
+    const objB = atomB.is_in_molecule ? atomB.molecule : atomB;
+
+    const massA = objA.getMass(); // fallback to default if mass not set
+    const massB = objB.getMass();
 
     // Separate objects to prevent overlap.
-    const separationVector = contactNormal.clone().multiplyScalar(penetrationDepth * 0.5);
-    atomA.position.sub(separationVector);
-    atomB.position.add(separationVector);
+    const totalMass = massA + massB;
+    const separationA = contactNormal.clone().multiplyScalar(penetrationDepth * massB / totalMass);
+    const separationB = contactNormal.clone().multiplyScalar(penetrationDepth * massA / totalMass);
+    objA.position.sub(separationA);
+    objB.position.add(separationB);
 
     // Calculate relative velocity at contact point.
-    const rA = contactPoint.clone().sub(atomA.position); // Contact point relative to A's center
-    const rB = contactPoint.clone().sub(atomB.position); // Contact point relative to B's center
+    const rA = contactPoint.clone().sub(objA.position); // Contact point relative to A's center
+    const rB = contactPoint.clone().sub(objB.position); // Contact point relative to B's center
 
     // Angular velocity contribution to contact point velocity
-    const angularVelA = new Vector3().crossVectors(atomA.rotation_axis.clone().multiplyScalar(atomA.rotation_speed), rA);
-    const angularVelB = new Vector3().crossVectors(atomB.rotation_axis.clone().multiplyScalar(atomB.rotation_speed), rB);
+    const angularVelA = new Vector3().crossVectors(objA.rotation_axis.clone().multiplyScalar(objA.rotation_speed), rA);
+    const angularVelB = new Vector3().crossVectors(objB.rotation_axis.clone().multiplyScalar(objB.rotation_speed), rB);
 
     // Total velocity at contact point
-    const velA = atomA.velocity.clone().add(angularVelA);
-    const velB = atomB.velocity.clone().add(angularVelB);
+    const velA = objA.velocity.clone().add(angularVelA);
+    const velB = objB.velocity.clone().add(angularVelB);
     const relativeVelocity = velA.sub(velB);
 
     // Velocity component along collision normal
@@ -361,34 +375,41 @@ class SATCollisionDetector {
     const rA_cross_n = new Vector3().crossVectors(rA, contactNormal);
     const rB_cross_n = new Vector3().crossVectors(rB, contactNormal);
 
-    // This is already very complicated. Give them the moment of a inertia of a solid sphere.
-    const moment_of_inertia = (2 / 5) * Config.atom_mass * Math.pow(Config.atom_size / 2, 2);
-
-    const denominator = (2 / Config.atom_mass) +
-      ((rA_cross_n.lengthSq() + rB_cross_n.lengthSq()) / moment_of_inertia);
+    // Calculate moments of inertia based on individual masses and sizes
+    // Assuming solid sphere: I = (2/5) * m * r²
+    const radiusA = objA.getSize() / 2;
+    const radiusB = objB.getSize() / 2;
+    const momentA = (2 / 5) * massA * Math.pow(radiusA, 2);
+    const momentB = (2 / 5) * massB * Math.pow(radiusB, 2);
+    const denominator = (1 / massA) + (1 / massB) + (rA_cross_n.lengthSq() / momentA) + (rB_cross_n.lengthSq() / momentB);
 
     const impulseMagnitude = -(1 + Config.restitution_coefficient) * normalVelocity / denominator;
     const impulse = contactNormal.clone().multiplyScalar(impulseMagnitude);
 
     // Apply linear impulse
-    atomA.velocity.add(impulse.clone().multiplyScalar(1 / Config.atom_mass));
-    atomB.velocity.sub(impulse.clone().multiplyScalar(1 / Config.atom_mass));
+    objA.velocity.add(impulse.clone().multiplyScalar(1 / massA));
+    objB.velocity.sub(impulse.clone().multiplyScalar(1 / massB));
 
     // Apply angular impulse
-    const angularImpulseA = new Vector3().crossVectors(rA, impulse).multiplyScalar(1 / moment_of_inertia);
-    const angularImpulseB = new Vector3().crossVectors(rB, impulse).multiplyScalar(-1 / moment_of_inertia);
+    const angularImpulseA = new Vector3().crossVectors(rA, impulse).multiplyScalar(1 / momentA);
+    const angularImpulseB = new Vector3().crossVectors(rB, impulse).multiplyScalar(-1 / momentB);
 
     // Update rotation (convert angular impulse to change in angular velocity)
-    const newAngularVelA = atomA.rotation_axis.clone().multiplyScalar(atomA.rotation_speed).add(angularImpulseA);
-    const newAngularVelB = atomB.rotation_axis.clone().multiplyScalar(atomB.rotation_speed).add(angularImpulseB);
+    const newAngularVelA = objA.rotation_axis.clone().multiplyScalar(objA.rotation_speed).add(angularImpulseA);
+    const newAngularVelB = objB.rotation_axis.clone().multiplyScalar(objB.rotation_speed).add(angularImpulseB);
 
-    // Update rotation axis and speed for A
-    atomA.rotation_speed = newAngularVelA.length();
-    atomA.rotation_axis = newAngularVelA.normalize();
+    // Molecule rotation is just too volatile given all my simplifications, gonna skip it.
+    if (!(objA instanceof Molecule)) {
+      // Update rotation axis and speed for A
+      objA.rotation_speed = newAngularVelA.length();
+      objA.rotation_axis = newAngularVelA.normalize();
+    }
 
-    // Update rotation axis and speed for B
-    atomB.rotation_speed = newAngularVelB.length();
-    atomB.rotation_axis = newAngularVelB.normalize();
+    if (!(objB instanceof Molecule)) {
+      // Update rotation axis and speed for B
+      objB.rotation_speed = newAngularVelB.length();
+      objB.rotation_axis = newAngularVelB.normalize();
+    }
   }
 
   public static testAndResolveCollision(atomA: Atom, atomB: Atom): {isColliding: boolean, isSticking: boolean } {
@@ -398,7 +419,10 @@ class SATCollisionDetector {
       this.resolveCollision(collisionInfo);
       // if (!collisionInfo.isMatchingFaces) {
       // }
-      return { isColliding: true, isSticking: collisionInfo.isMatchingFaces };
+      return {
+        isColliding: true,
+        isSticking: (collisionInfo.isMatchingFaces && collisionInfo.distance < Config.atom_size * 0.2)
+      };
     }
 
     return { isColliding: false, isSticking: false } ;

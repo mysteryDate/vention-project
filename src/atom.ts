@@ -7,6 +7,7 @@ import {
 } from "three";
 
 import Config from "./config";
+import Molecule from "./molecule";
 
 export default class Atom extends Mesh {
   public key: number; // Can't use "id" :'(
@@ -20,7 +21,7 @@ export default class Atom extends Mesh {
 
   public molecule_id: number = -1;
   public is_in_molecule: boolean = false;
-  public molecule_mass: number = Config.atom_mass;
+  public molecule: Molecule;
 
   constructor(key: number, material: Material) {
     const geometry = new BoxBufferGeometry(Config.atom_size, Config.atom_size, Config.atom_size);
@@ -41,6 +42,30 @@ export default class Atom extends Mesh {
 
     this.setRotationFromAxisAngle(randomVector3().normalize(), Math.PI * 2 * Math.random());
   }
+
+  public setMolecule(mol: Molecule) {
+    this.molecule = mol;
+  }
+
+  public getMass(): number {
+    return Config.atom_mass;
+  }
+
+  public getMoleculeMass(): number {
+    if (this.is_in_molecule) {
+      return Config.atom_mass;
+    }
+    return this.molecule.atoms.length * Config.atom_mass;
+  }
+
+  public getSize(): number {
+    if (this.is_in_molecule) {
+      return this.molecule.getSize();
+    }
+
+    return Config.atom_size;
+  }
+
 
   private updateBoundingBox(): void {
     if (!this._boundingBoxDirty) {

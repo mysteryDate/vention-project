@@ -3,7 +3,6 @@ import {
   BoxHelper,
   Group,
   Object3D,
-  Quaternion,
   Scene,
   Vector3
 } from "three";
@@ -39,6 +38,8 @@ export default class Molecule extends Object3D {
   public pivotGroup: Group = new Group();
   public scene: Scene;
 
+  public boundingBox: Box3 = new Box3();
+
   constructor(atom1: Atom, atom2: Atom, scene: Scene) {
     super();
     this.scene = scene;
@@ -46,32 +47,6 @@ export default class Molecule extends Object3D {
     this.addAtom(atom1);
     this.addAtom(atom2);
   }
-
-  private static addWithoutMoving(parent: Object3D, child: Object3D) {
-      // Store world state
-    const worldPos = new Vector3();
-    const worldQuat = new Quaternion();
-    const worldScale = new Vector3();
-
-    child.getWorldPosition(worldPos);
-    child.getWorldQuaternion(worldQuat);
-    child.getWorldScale(worldScale);
-
-    // Add child (changes world position)
-    parent.add(child);
-
-    // Restore world position using reliable methods
-    child.position.copy(parent.worldToLocal(worldPos.clone()));
-
-    // Restore world rotation
-    const parentInverseQuat = parent.getWorldQuaternion(new Quaternion).inverse();
-    child.quaternion.multiplyQuaternions(parentInverseQuat, worldQuat);
-
-    // Restore world scale
-    const parentScale = new Vector3();
-    parent.getWorldScale(parentScale);
-    child.scale.copy(worldScale).divide(parentScale);
-}
 
   public addAtom(atom: Atom) {
     const initialMass = this.atoms.length * Config.atom_mass;
@@ -85,7 +60,6 @@ export default class Molecule extends Object3D {
     const finalMomentum = initialMomentum.add(newAtomMomentum);
     const newVelocity = finalMomentum.multiplyScalar(1 / currentMass);
 
-    // atom.velocity.multiplyScalar(0);
 
     this.velocity.copy(newVelocity);
     // this.velocity.multiplyScalar(0);
@@ -104,6 +78,8 @@ export default class Molecule extends Object3D {
 
     // Molecule.addWithoutMoving(this, atom);
     this.attach(atom);
+    atom.molecule_id = this.id;
+    atom.setMolecule(this);
     // this.boxHelper = new BoxHelper(this, 0xffffff);
     // this.rotation_speed = 0.01;
 
@@ -122,21 +98,33 @@ export default class Molecule extends Object3D {
 
     // Adjust parent object position to account for new center
     // console.log(centerDiff);
+    atom.velocity.multiplyScalar(0);
+    atom.rotation_speed = 0;
 
     // if (this.atoms.length != 1) {
-    //   // this.position.sub(centerDiff);
-    //   // this.pivotGroup.position.add(centerDiff);
-    // }
+      //   // this.position.sub(centerDiff);
+      //   // this.pivotGroup.position.add(centerDiff);
+      // }
 
-    this.pivotGroup = rebuildPivotSystemPreservePosition(this, this.scene);
+      this.pivotGroup = rebuildPivotSystemPreservePosition(this, this.scene);
 
-    // console.log("FRAME----");
-    // console.log("newCenter", newCenter);
-    // console.log("this.pivotGroup.position", this.pivotGroup.position);
-    // console.log("currentPGPosition", currentPGPosition);
+      // console.log("FRAME----");
+      // console.log("newCenter", newCenter);
+      // console.log("this.pivotGroup.position", this.pivotGroup.position);
+      // console.log("currentPGPosition", currentPGPosition);
     // console.log("centerDiff", centerDiff);
     // console.log("DONE FRAME FRAME----\n\n\n");
   };
+
+  public getMass(): number {
+    return this.atoms.length * Config.atom_mass;
+  }
+
+  public getSize(): number {
+    const bb = this.boundingBox;
+    const size = bb.getSize(new Vector3);
+    return (size.x + size.y + size.z) / 3;
+  }
 
   public addMolecule(other: Molecule) {
     // TODO: this is greatly oversimplfied
@@ -154,42 +142,43 @@ export default class Molecule extends Object3D {
       this.atoms.push(atom);
       this.attach(atom);
       atom.molecule_id = this.id;
+      atom.setMolecule(this);
     });
 
+    this.pivotGroup = rebuildPivotSystemPreservePosition(this, this.scene);
   }
 
   public update(): void {
     this.pivotGroup.position.add(this.velocity);
 
     this.updateMatrixWorld(true);
-    const boundingBox = new Box3();
-    boundingBox.expandByObject(this);
+    this.boundingBox.makeEmpty();
+    this.boundingBox.expandByObject(this);
     // for (const atom of this.atoms) {
     //   atom.updateMatrixWorld();
     //   boundingBox.expandByObject(atom);
     // }
 
     // Bounce off the walls.
-    if (boundingBox.max.x > Config.simulation_size / 2 && this.velocity.x > 0) {
+    if (this.boundingBox.max.x > Config.simulation_size / 2 && this.velocity.x > 0) {
       this.velocity.x *= -1;
     }
-    if (boundingBox.max.y > Config.simulation_size / 2 && this.velocity.y > 0) {
+    if (this.boundingBox.max.y > Config.simulation_size / 2 && this.velocity.y > 0) {
       this.velocity.y *= -1;
     }
-    if (boundingBox.max.z > Config.simulation_size / 2 && this.velocity.z > 0) {
+    if (this.boundingBox.max.z > Config.simulation_size / 2 && this.velocity.z > 0) {
       this.velocity.z *= -1;
     }
-    if (boundingBox.min.x < -Config.simulation_size / 2 && this.velocity.x < 0) {
+    if (this.boundingBox.min.x < -Config.simulation_size / 2 && this.velocity.x < 0) {
       this.velocity.x *= -1;
     }
-    if (boundingBox.min.y < -Config.simulation_size / 2 && this.velocity.y < 0) {
+    if (this.boundingBox.min.y < -Config.simulation_size / 2 && this.velocity.y < 0) {
       this.velocity.y *= -1;
     }
-    if (boundingBox.min.z < -Config.simulation_size / 2 && this.velocity.z < 0) {
+    if (this.boundingBox.min.z < -Config.simulation_size / 2 && this.velocity.z < 0) {
       this.velocity.z *= -1;
     }
 
-    const center = boundingBox.getCenter(new Vector3);
     // this.position.sub(center);
     // this.rotateY(0.1);
     // this.rotateOnAxis(this.rotation_axis, this.rotation_speed);
