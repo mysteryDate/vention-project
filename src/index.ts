@@ -1,3 +1,4 @@
+// index.ts - Updated with dat.gui integration
 import Stats from "stats.js";
 import {
   AmbientLight,
@@ -18,11 +19,10 @@ import {
   WebGLRenderer
 } from "three";
 
+import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 import Atom from "./atom";
 import CollisionDetector, {CollisionPair} from "./collision-detector";
-import Config from "./config";
-
-import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
+import Config, {configManager} from "./config";
 import Molecule from "./molecule";
 
 class Main {
@@ -42,19 +42,132 @@ class Main {
   private stats: Stats;
 
   private atoms: Atom[];
-  private molecules: { [key: number]: Molecule};
+  private molecules: {[key: number]: Molecule};
 
   /** The boundaries of the simulation */
   private bounds: Mesh;
 
   /** some materials for the cubes */
   private notCollidingMaterial: any;
+  private standardMaterials: MeshStandardMaterial[];
 
   /** The collision detector */
   private collisionDetector: CollisionDetector;
 
+  /** Animation state */
+  private isAnimating: boolean = true;
+  private lastTime: number = 0;
+  private frameCount: number = 0;
+  private fps: number = 60;
+
   constructor() {
     this.initViewport();
+    this.setupGUICallbacks();
+  }
+
+  private setupGUICallbacks(): void {
+    configManager.setCallbacks({
+      onResetRequired: () => {
+        this.resetSimulation();
+      },
+      onRealTimeUpdate: (property: string, value: any) => {
+        this.handleRealTimeUpdate(property, value);
+      }
+    });
+  }
+
+  private handleRealTimeUpdate(property: string, value: any): void {
+    switch (property) {
+      case 'velocity_multiplier':
+        // Update existing atom velocities
+        this.atoms.forEach(atom => {
+          if (atom.velocity.length() > 0) {
+            atom.velocity.normalize().multiplyScalar(value);
+          }
+        });
+        break;
+
+      case 'use_normal_material':
+        this.updateMaterials();
+        this.atoms.forEach(atom => {
+          if (atom.last_collision > 40) {
+            atom.material = this.notCollidingMaterial;
+          }
+        });
+        break;
+
+      case 'pauseSimulation':
+        this.isAnimating = !value;
+        break;
+
+      case 'atom_mass':
+        // This affects collision calculations but doesn't require reset
+        break;
+
+      case 'restitution_coefficient':
+        // This affects collision calculations but doesn't require reset
+        break;
+    }
+  }
+
+  private resetSimulation(): void {
+    // Clear existing objects
+    this.clearSimulation();
+
+    // Recreate everything with new config
+    this.updateMaterials();
+    this.createScenario();
+    this.collisionDetector = new CollisionDetector(this.atoms, Object.values(this.molecules));
+
+    // Update bounds
+    this.scene.remove(this.bounds);
+    this.bounds = this.createBoundaryMesh();
+    this.scene.add(this.bounds);
+
+    this.render();
+  }
+
+  private clearSimulation(): void {
+    // Remove all atoms
+    this.atoms.forEach(atom => {
+      this.scene.remove(atom);
+      atom.geometry.dispose();
+      if (Array.isArray(atom.material)) {
+        atom.material.forEach(mat => mat.dispose());
+      } else {
+        atom.material.dispose();
+      }
+    });
+
+    // Remove all molecules
+    Object.values(this.molecules).forEach(molecule => {
+      this.scene.remove(molecule.pivotGroup);
+      // Molecules contain atoms, so we don't need to dispose their geometry/materials separately
+    });
+
+    this.atoms = [];
+    this.molecules = {};
+  }
+
+  private updateMaterials(): void {
+    if (Config.use_normal_material) {
+      this.notCollidingMaterial = new MeshNormalMaterial();
+    } else {
+      // Dispose old materials if they exist
+      if (this.standardMaterials) {
+        this.standardMaterials.forEach(mat => mat.dispose());
+      }
+
+      this.standardMaterials = [
+        new MeshStandardMaterial({color: 0xff0000}), // Red: Right face
+        new MeshStandardMaterial({color: 0x00ff00}), // Green: Left face
+        new MeshStandardMaterial({color: 0x0000ff}), // Blue: Top face
+        new MeshStandardMaterial({color: 0xffff00}), // Yellow: Bottom face
+        new MeshStandardMaterial({color: 0xff00ff}), // Magenta: Front face
+        new MeshStandardMaterial({color: 0x00ffff})  // Cyan: Back face
+      ];
+      this.notCollidingMaterial = this.standardMaterials;
+    }
   }
 
   /** Initialize the viewport */
@@ -76,7 +189,7 @@ class Main {
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.render(this.scene, this.camera);
-    this.renderer.setAnimationLoop(() => this.animate()); // uncomment if you want to use the animation loop
+    this.renderer.setAnimationLoop((time) => this.animate(time));
     document.body.appendChild(this.renderer.domElement);
     window.addEventListener("resize", () => this.onResize());
 
@@ -93,19 +206,7 @@ class Main {
     this.bounds = this.createBoundaryMesh();
     this.scene.add(this.bounds);
 
-
-    if (Config.use_normal_material) {
-      this.notCollidingMaterial = new MeshNormalMaterial();
-    } else {
-      this.notCollidingMaterial = [
-          new MeshStandardMaterial({ color: 0xff0000 }), // Red: Right face
-          new MeshStandardMaterial({ color: 0x00ff00 }), // Green: Left face
-          new MeshStandardMaterial({ color: 0x0000ff }), // Blue: Top face
-          new MeshStandardMaterial({ color: 0xffff00 }), // Yellow: Bottom face
-          new MeshStandardMaterial({ color: 0xff00ff }), // Magenta: Front face
-          new MeshStandardMaterial({ color: 0x00ffff })  // Cyan: Back face
-      ];
-    }
+    this.updateMaterials();
 
     // Add lights to the scene (needed for MeshStandardMaterial)
     const ambientLight = new AmbientLight(0xffffff, 0.6);
@@ -113,9 +214,9 @@ class Main {
 
     // Add atoms.
     this.atoms = [];
-    this.molecules = [];
+    this.molecules = {};
     this.createScenario();
-    this.collisionDetector = new CollisionDetector(this.atoms, this.molecules);
+    this.collisionDetector = new CollisionDetector(this.atoms, Object.values(this.molecules));
     this.render();
   }
 
@@ -124,7 +225,6 @@ class Main {
       this.atoms.push(new Atom(i, this.notCollidingMaterial));
       this.scene.add(this.atoms[i]);
     }
-
   }
 
   private createScenario() {
@@ -143,7 +243,6 @@ class Main {
 
       this.atoms[0].position.x = -20;
       this.atoms[0].rotation_axis = new Vector3(0, 1, 0);
-      // this.atoms[0].rotation_speed = 0.1;
       this.atoms[0].velocity.x = 0.1;
       this.atoms[1].position.x = 10;
 
@@ -152,7 +251,7 @@ class Main {
 
       if (Config.scenario == 1) {
         this.atoms[0].position.y = 10;
-        this.atoms[0].rotateY(Math.PI/2);
+        this.atoms[0].rotateY(Math.PI / 2);
         this.atoms[0].position.z = 10;
         this.atoms[1].position.y = -10;
       }
@@ -230,83 +329,81 @@ class Main {
   }
 
   /** Animates the scene */
-  public animate() {
+  public animate(time: number) {
     this.stats.begin();
 
-    for (const atom of this.atoms) {
-      atom.update();
+    // Calculate FPS
+    if (time - this.lastTime >= 1000) {
+      this.fps = this.frameCount;
+      this.frameCount = 0;
+      this.lastTime = time;
     }
-    for (const molecule of Object.values(this.molecules)) {
-      molecule.update();
-    }
+    this.frameCount++;
 
-    // Collisions
-    const collisionPairs: CollisionPair[] = this.collisionDetector.detectCollisions();
-    const collidingAtomKeys = new Set<number>();
+    // Update GUI info
+    configManager.updateInfo(this.fps, this.atoms.length, Object.keys(this.molecules).length);
 
-    for (const pair of collisionPairs) {
-      collidingAtomKeys.add(pair[0].key);
-      collidingAtomKeys.add(pair[1].key);
-    }
-
-    for (const atom of this.atoms) {
-      if (collidingAtomKeys.has(atom.key) && atom.velocity.length() > 0) {
-        atom.last_collision = 0;
+    // Only update simulation if not paused
+    if (this.isAnimating) {
+      for (const atom of this.atoms) {
+        atom.update();
       }
-      if (atom.last_collision < 40) {
-        const material = new MeshBasicMaterial();
-        const bright = ((40 - atom.last_collision) / (40 * 4)) + 0.75;
-        material.color.set(new Color(bright, bright, bright))
-        atom.material = material;
-      } else {
-        atom.material = this.notCollidingMaterial;
+      for (const molecule of Object.values(this.molecules)) {
+        molecule.update();
       }
-      atom.last_collision += 1;
-    }
 
-    for (const pair of collisionPairs) {
-      if (pair[2]) { // Sticky collision
-        if (!pair[1].is_in_molecule && !pair[0].is_in_molecule) {
-          const mol = new Molecule(pair[0], pair[1], this.scene);
-          // this.scene.remove(pair[0]);
-          // this.scene.remove(pair[1]);
-          pair[0].molecule_id = mol.id;
-          pair[1].molecule_id = mol.id;
-          pair[0].is_in_molecule = true;
-          pair[1].is_in_molecule = true;
-          this.scene.add(mol.pivotGroup);
-          // this.scene.add(mol.boxHelper);
+      // Collisions
+      const collisionPairs: CollisionPair[] = this.collisionDetector.detectCollisions();
+      const collidingAtomKeys = new Set<number>();
 
-          this.molecules[mol.id] = mol;
-        } else if (pair[0].is_in_molecule && !pair[1].is_in_molecule) {
-          const mol = pair[0].molecule;
+      for (const pair of collisionPairs) {
+        collidingAtomKeys.add(pair[0].key);
+        collidingAtomKeys.add(pair[1].key);
+      }
 
-          mol.addAtom(pair[1]);
-          // this.scene.remove(pair[1]);
-          pair[1].molecule_id = mol.id;
-          pair[1].is_in_molecule = true;
-          // this.scene.add(mol);
-          // this.scene.remove(mol.boxHelper);
-          // this.scene.add(mol.boxHelper);
-        } else if (pair[1].is_in_molecule && !pair[0].is_in_molecule) {
-          // const mol = this.molecules[pair[1].molecule_id]!;
-          const mol = pair[1].molecule;
+      for (const atom of this.atoms) {
+        if (collidingAtomKeys.has(atom.key) && atom.velocity.length() > 0) {
+          atom.last_collision = 0;
+        }
+        if (atom.last_collision < 40) {
+          const material = new MeshBasicMaterial();
+          const bright = ((40 - atom.last_collision) / (40 * 4)) + 0.75;
+          material.color.set(new Color(bright, bright, bright))
+          atom.material = material;
+        } else {
+          atom.material = this.notCollidingMaterial;
+        }
+        atom.last_collision += 1;
+      }
 
-          mol.addAtom(pair[0]);
-          // this.scene.remove(pair[0]);
-          pair[0].molecule_id = mol.id;
-          pair[0].is_in_molecule = true;
-          // this.scene.add(mol);
-          // this.scene.add(mol.boxHelper);
-        } else if (pair[1].is_in_molecule && pair[0].is_in_molecule) {
-          const mol = pair[0].molecule;
-          const mol2 = pair[1].molecule;
+      for (const pair of collisionPairs) {
+        if (pair[2]) { // Sticky collision
+          if (!pair[1].is_in_molecule && !pair[0].is_in_molecule) {
+            const mol = new Molecule(pair[0], pair[1], this.scene);
+            pair[0].molecule_id = mol.id;
+            pair[1].molecule_id = mol.id;
+            pair[0].is_in_molecule = true;
+            pair[1].is_in_molecule = true;
+            this.scene.add(mol.pivotGroup);
+            this.molecules[mol.id] = mol;
+          } else if (pair[0].is_in_molecule && !pair[1].is_in_molecule) {
+            const mol = pair[0].molecule;
+            mol.addAtom(pair[1]);
+            pair[1].molecule_id = mol.id;
+            pair[1].is_in_molecule = true;
+          } else if (pair[1].is_in_molecule && !pair[0].is_in_molecule) {
+            const mol = pair[1].molecule;
+            mol.addAtom(pair[0]);
+            pair[0].molecule_id = mol.id;
+            pair[0].is_in_molecule = true;
+          } else if (pair[1].is_in_molecule && pair[0].is_in_molecule) {
+            const mol = pair[0].molecule;
+            const mol2 = pair[1].molecule;
 
-          if (mol && mol2) {
-            mol.addMolecule(mol2);
-            // this.scene.remove(mol2);
-
-            delete this.molecules[mol2.id];
+            if (mol && mol2) {
+              mol.addMolecule(mol2);
+              delete this.molecules[mol2.id];
+            }
           }
         }
       }
@@ -336,9 +433,22 @@ class Main {
       color: 0x00ff00,
       linewidth: 1
     });
-    return new LineSegments(edges, lineMaterial);;
+    return new LineSegments(edges, lineMaterial);
+  }
+
+  // Cleanup method
+  public destroy(): void {
+    configManager.destroy();
+    this.clearSimulation();
+    if (this.renderer) {
+      this.renderer.dispose();
+    }
   }
 }
 
 const main = new Main();
 
+// Handle page unload
+window.addEventListener('beforeunload', () => {
+  main.destroy();
+});

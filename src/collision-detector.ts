@@ -336,9 +336,7 @@ class SATCollisionDetector {
   private static resolveCollision(collision: CollisionInfo): void {
     const {atomA, atomB, contactPoint, contactNormal, penetrationDepth} = collision;
 
-
     // Get individual masses
-
     const objA = atomA.is_in_molecule ? atomA.molecule : atomA;
     const objB = atomB.is_in_molecule ? atomB.molecule : atomB;
 
@@ -398,17 +396,29 @@ class SATCollisionDetector {
     const newAngularVelA = objA.rotation_axis.clone().multiplyScalar(objA.rotation_speed).add(angularImpulseA);
     const newAngularVelB = objB.rotation_axis.clone().multiplyScalar(objB.rotation_speed).add(angularImpulseB);
 
+    function lerp(a: number, b: number, t: number) {
+      return a + t * (b - a);
+    }
     // Molecule rotation is just too volatile given all my simplifications, gonna skip it.
+    // I shouldn't HAVE to rebuild the pivot system here, alas...
     if (!(objA instanceof Molecule)) {
-      // Update rotation axis and speed for A
       objA.rotation_speed = newAngularVelA.length();
       objA.rotation_axis = newAngularVelA.normalize();
+      // Update rotation axis and speed for A
+    } else {
+      objA.rotation_speed = lerp(objA.rotation_speed, newAngularVelA.length(), massB / (totalMass));
+      objA.rotation_axis.lerp(newAngularVelA.normalize(), massB / totalMass).normalize();
+      // objA.rebuildPivot();
     }
 
     if (!(objB instanceof Molecule)) {
-      // Update rotation axis and speed for B
       objB.rotation_speed = newAngularVelB.length();
       objB.rotation_axis = newAngularVelB.normalize();
+      // Update rotation axis and speed for B
+    } else {
+      objB.rotation_speed = lerp(objB.rotation_speed, newAngularVelA.length(), massA / (totalMass));
+      objB.rotation_axis.lerp(newAngularVelA.normalize(), massA / totalMass).normalize();
+      // objB.rebuildPivot();
     }
   }
 
@@ -421,7 +431,7 @@ class SATCollisionDetector {
       // }
       return {
         isColliding: true,
-        isSticking: (collisionInfo.isMatchingFaces && collisionInfo.distance < Config.atom_size * 0.2)
+        isSticking: (collisionInfo.isMatchingFaces && collisionInfo.distance < Config.atom_size * 200.2)
       };
     }
 

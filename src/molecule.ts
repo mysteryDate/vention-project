@@ -48,6 +48,10 @@ export default class Molecule extends Object3D {
     this.addAtom(atom2);
   }
 
+  public rebuildPivot() {
+    this.pivotGroup = rebuildPivotSystemPreservePosition(this, this.scene);
+  }
+
   public addAtom(atom: Atom) {
     const initialMass = this.atoms.length * Config.atom_mass;
     this.atoms.push(atom);
@@ -85,28 +89,29 @@ export default class Molecule extends Object3D {
 
     // Recalculate bounding box with new child
     this.updateMatrixWorld(true);
-    const boundingBox = new Box3();
-    for (const atom of this.atoms) {
-      boundingBox.expandByObject(atom);
-      const cc = boundingBox.getCenter(new Vector3());
-    }
-    const newCenter = boundingBox.getCenter(new Vector3());
-
-    // Calculate the offset from old center to new center
-    const currentPGPosition = this.position.clone();
-    const centerDiff = newCenter.clone().sub(currentPGPosition.clone().negate());
 
     // Adjust parent object position to account for new center
     // console.log(centerDiff);
     atom.velocity.multiplyScalar(0);
     atom.rotation_speed = 0;
 
+    const boundingBox = new Box3().setFromObject(this);
+    const center = boundingBox.getCenter(new Vector3());
+
+    // Create pivot group at center
+    // const newPivotGroup = new Group();
+    // this.pivotGroup.position.copy(center);
+    // this.scene.add(this.pivotGroup);
+    // this.pivotGroup.attach(this);
+    this.rebuildPivot();
+
     // if (this.atoms.length != 1) {
       //   // this.position.sub(centerDiff);
       //   // this.pivotGroup.position.add(centerDiff);
       // }
 
-      this.pivotGroup = rebuildPivotSystemPreservePosition(this, this.scene);
+    // this.pivotGroup = rebuildPivotSystemPreservePosition(this, this.scene);
+    // this.rebuildPivot();
 
       // console.log("FRAME----");
       // console.log("newCenter", newCenter);
@@ -149,6 +154,21 @@ export default class Molecule extends Object3D {
   }
 
   public update(): void {
+    // this.rebuildPivot();
+    // Calculate bounding box center before any changes
+
+    // Create pivot group at center
+    // const newPivotGroup = new Group();
+    // this.pivotGroup.applyMatrix4(new Matrix4().identity());
+    // this.pivotGroup.rotation.set(0, 0, 0);
+    // this.pivotGroup.position.copy(center);
+    this.scene.remove(this.pivotGroup);
+    this.rebuildPivot();
+    // scene.add(newPivotGroup);
+
+    // Use attach() to preserve world position
+    // newPivotGroup.attach(parentObject);
+
     this.pivotGroup.position.add(this.velocity);
 
     this.updateMatrixWorld(true);
@@ -158,6 +178,13 @@ export default class Molecule extends Object3D {
     //   atom.updateMatrixWorld();
     //   boundingBox.expandByObject(atom);
     // }
+
+    if (this.velocity.length() > 1) {
+      this.velocity.multiplyScalar(0.99);
+    }
+    if (this.rotation_speed > 0.1) {
+      this.rotation_speed *= 0.9;
+    }
 
     // Bounce off the walls.
     if (this.boundingBox.max.x > Config.simulation_size / 2 && this.velocity.x > 0) {
@@ -177,6 +204,11 @@ export default class Molecule extends Object3D {
     }
     if (this.boundingBox.min.z < -Config.simulation_size / 2 && this.velocity.z < 0) {
       this.velocity.z *= -1;
+    }
+
+    const center = this.boundingBox.getCenter(new Vector3());
+    if (center.length() > Config.simulation_size * 1.1) {
+      this.velocity.add(center.normalize().multiplyScalar(-0.1))
     }
 
     // this.position.sub(center);

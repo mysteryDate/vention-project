@@ -99,6 +99,13 @@ export default class Atom extends Mesh {
       this.position.add(this.velocity);
     }
 
+    if (this.velocity.length() > 1) {
+      this.velocity.multiplyScalar(0.99);
+    }
+    if (this.rotation_speed > 0.2) {
+      this.rotation_speed
+    }
+
     this._boundingBoxDirty = true;
     const bb = this.getBoundingBox();
     // Bounce off the walls.
