@@ -10,6 +10,7 @@ export interface ConfigInterface {
   restitution_coefficient: number;
   scenario: number;
   use_normal_material: boolean;
+  form_molecules: boolean;
 
   // GUI control methods
   resetSimulation?: () => void;
@@ -51,6 +52,7 @@ class ConfigManager {
       restitution_coefficient: 1.0,
       scenario: 4,
       use_normal_material: false,
+      form_molecules: false,
       pauseSimulation: false
     };
 
@@ -112,6 +114,10 @@ class ConfigManager {
 
     // Physics folder
     const physicsFolder = this.gui.addFolder('Physics');
+
+    physicsFolder.add(this.config, 'form_molecules')
+      .name('Form Molecules')
+      .onChange(() => this.handlePropertyChange('form_molecules'));
 
     physicsFolder.add(this.config, 'restitution_coefficient', 0, 2)
       .name('Restitution')

@@ -431,7 +431,7 @@ class SATCollisionDetector {
       // }
       return {
         isColliding: true,
-        isSticking: (collisionInfo.isMatchingFaces && collisionInfo.distance < Config.atom_size * 200.2)
+        isSticking: (collisionInfo.isMatchingFaces && Config.form_molecules)
       };
     }
 
