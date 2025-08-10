@@ -228,18 +228,17 @@ class Main {
     this.render();
   }
 
-  private createAtoms() {
-    for (let i = 0; i < Config.number_of_atoms; i++) {
+  private createAtoms(num: number) {
+    for (let i = 0; i < num; i++) {
       this.atoms.push(new Atom(i, this.notCollidingMaterial));
       this.scene.add(this.atoms[i]);
     }
   }
 
   private createScenario() {
-    if (Config.scenario < 2) {
+    if (Config.scenario === 'collision' || Config.scenario === 'angled_collision') {
       // A simple tests of two large boxes colliding.
-      Config.number_of_atoms = 2;
-      this.createAtoms();
+      this.createAtoms(2);
 
       this.atoms.forEach(atom => {
         atom.velocity.multiplyScalar(0);
@@ -256,80 +255,66 @@ class Main {
       this.atoms[0].rotateZ(Math.PI);
       this.atoms[0].rotateX(Math.PI);
 
-      if (Config.scenario == 1) {
-        this.atoms[0].position.y = 10;
+      if (Config.scenario == 'angled_collision') {
+        this.atoms[0].position.y = Config.atom_size / 4;
         this.atoms[0].rotateY(Math.PI / 2);
-        this.atoms[0].position.z = 10;
-        this.atoms[1].position.y = -10;
+        this.atoms[0].position.z = Config.atom_size / 2;
+        this.atoms[1].position.y = -Config.atom_size / 4;
       }
-    } else if (Config.scenario == 2) {
+    } else if (Config.scenario == 'cradle') {
       // Newton's cradle
-      Config.number_of_atoms = 4;
-      this.createAtoms();
+      let num_atoms = Config.number_of_atoms;
+      if (num_atoms * Config.atom_size >= Config.simulation_size) {
+        num_atoms = Math.floor(Config.simulation_size / Config.atom_size);
+      }
+      this.createAtoms(num_atoms);
+      const atom_space = this.atoms.length * Config.atom_size;
+      const remaining_space = Config.simulation_size - atom_space;
+      const gap_size = remaining_space / (this.atoms.length + 1);
 
       this.atoms.forEach(atom => {
         atom.velocity.multiplyScalar(0);
         atom.position.multiplyScalar(0);
+        atom.position.x = (gap_size + Config.atom_size) * atom.key - Config.simulation_size / 2 + Config.atom_size / 2;
+
         atom.setRotationFromEuler(new Euler(0, 0, 0));
         atom.rotation_speed = 0;
+
+        if (atom.key % 4 == 0) {
+          atom.rotateZ(Math.PI);
+        }
       });
 
-      this.atoms[0].position.x = -40;
       this.atoms[0].velocity.x = 0.1;
-      this.atoms[1].position.x = 20;
-      this.atoms[2].position.x = 40;
-    } else if (Config.scenario == 3) {
-      // Stick test
-      Config.number_of_atoms = 3;
-      this.createAtoms();
-
-      this.atoms.forEach(atom => {
-        atom.velocity.multiplyScalar(0);
-        atom.position.multiplyScalar(0);
-        atom.setRotationFromEuler(new Euler(0, 0, 0));
-        atom.rotation_speed = 0;
-      });
-
-      this.atoms[0].position.x = -30;
-      this.atoms[0].velocity.x = 0.1;
-      this.atoms[1].position.x = -10;
-      this.atoms[2].position.x = 40;
-
-      this.atoms[0].rotateZ(Math.PI);
-      this.atoms[2].rotateZ(Math.PI);
-    } else if (Config.scenario == 4) {
+    } else if (Config.scenario == 'lattice') {
       // One atom bouncing around a lattice.
-      Config.number_of_atoms = 512;
-
-      this.createAtoms();
-
       const grid_size = Math.ceil(Math.pow(Config.number_of_atoms, 1 / 3));
+      const num_atoms = grid_size ** 3 + 1;
+
+      this.createAtoms(num_atoms);
+
       const span = grid_size * Config.atom_size;
       const spacing = (Config.simulation_size - span) / (grid_size + 1);
 
       this.atoms.forEach(atom => {
-        if (atom.key < 5) {
+        if (atom.key == num_atoms - 1) {
           atom.velocity.normalize().multiplyScalar(0.5);
+          atom.position.x = -Config.simulation_size / 2;
         } else {
           const x_rank = (atom.key % grid_size);
           const y_rank = Math.floor(atom.key / grid_size) % grid_size;
           const z_rank = Math.floor(atom.key / grid_size / grid_size);
 
-
-
           atom.position.x = spacing + x_rank * (spacing + Config.atom_size) - Config.simulation_size / 2 + Config.atom_size / 2;
           atom.position.y = spacing + y_rank * (spacing + Config.atom_size) - Config.simulation_size / 2 + Config.atom_size / 2;
           atom.position.z = spacing + z_rank * (spacing + Config.atom_size) - Config.simulation_size / 2 + Config.atom_size / 2;
-          // atom.position.x = x_rank / grid_size * Config.simulation_size - Config.simulation_size / 2;
-          // atom.position.y = y_rank / grid_size * Config.simulation_size - Config.simulation_size / 2;
-          // atom.position.z = z_rank / grid_size * Config.simulation_size - Config.simulation_size / 2;
           atom.velocity.multiplyScalar(0.0);
           atom.rotation_speed = 0;
           atom.rotation.setFromVector3(new Vector3(0, 0, 0));
         }
       });
     } else {
-      this.createAtoms();
+      this.createAtoms(Config.number_of_atoms);
     }
   }
 
@@ -390,6 +375,8 @@ class Main {
 
       for (const pair of collisionPairs) {
         if (pair[2]) { // Sticky collision
+          pair[0].material = new MeshBasicMaterial({color: 0xff00ff});
+          pair[1].material = new MeshBasicMaterial({color: 0xff00ff});
           if (!pair[1].is_in_molecule && !pair[0].is_in_molecule) {
             const mol = new Molecule(pair[0], pair[1], this.scene);
             pair[0].molecule_id = mol.id;

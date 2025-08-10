@@ -8,7 +8,7 @@ export interface ConfigInterface {
   velocity_multiplier: number;
   atom_mass: number;
   restitution_coefficient: number;
-  scenario: number;
+  scenario: string;
   use_normal_material: boolean;
   form_molecules: boolean;
 
@@ -42,6 +42,15 @@ class ConfigManager {
     'pauseSimulation'
   ]);
 
+  // Scenario options for dropdown
+  private readonly SCENARIO_OPTIONS = {
+    'Random Gas': 'random',
+    'Simple Collision': 'collision',
+    'Angled Collision': 'angled_collision',
+    'Newton\'s Cradle': 'cradle',
+    'Lattice Bouncing': 'lattice'
+  };
+
   constructor() {
     this.config = {
       simulation_size: 100,
@@ -50,7 +59,7 @@ class ConfigManager {
       velocity_multiplier: 2,
       atom_mass: 1,
       restitution_coefficient: 1.0,
-      scenario: 4,
+      scenario: "angled_collision",
       use_normal_material: false,
       form_molecules: false,
       pauseSimulation: false
@@ -69,7 +78,7 @@ class ConfigManager {
       .name('Simulation Size')
       .onChange(() => this.handlePropertyChange('simulation_size'));
 
-    simulationFolder.add(this.config, 'scenario', 0, 4, 1)
+    simulationFolder.add(this.config, 'scenario', this.SCENARIO_OPTIONS)
       .name('Scenario')
       .onChange(() => this.handlePropertyChange('scenario'));
 
@@ -180,51 +189,16 @@ class ConfigManager {
     }
   }
 
-  // Preset configurations
-  public loadPreset(preset: 'collision' | 'cradle' | 'lattice' | 'molecules'): void {
-    switch (preset) {
-      case 'collision':
-        Object.assign(this.config, {
-          scenario: 0,
-          number_of_atoms: 2,
-          atom_size: 20,
-          velocity_multiplier: 1
-        });
-        break;
-      case 'cradle':
-        Object.assign(this.config, {
-          scenario: 2,
-          number_of_atoms: 4,
-          atom_size: 15,
-          velocity_multiplier: 1
-        });
-        break;
-      case 'lattice':
-        Object.assign(this.config, {
-          scenario: 4,
-          number_of_atoms: 512,
-          atom_size: 2,
-          velocity_multiplier: 2
-        });
-        break;
-      case 'molecules':
-        Object.assign(this.config, {
-          scenario: 3,
-          number_of_atoms: 10,
-          atom_size: 8,
-          velocity_multiplier: 1.5
-        });
-        break;
-    }
+  // // Preset configurations
+  // public loadPreset(preset: 'collision' | 'angled collision' | 'cradle' | 'lattice'): void {
+  //   // Update GUI controllers
+  //   this.gui.updateDisplay();
 
-    // Update GUI controllers
-    this.gui.updateDisplay();
-
-    // Trigger reset
-    if (this.callbacks.onResetRequired) {
-      this.callbacks.onResetRequired();
-    }
-  }
+  //   // Trigger reset
+  //   if (this.callbacks.onResetRequired) {
+  //     this.callbacks.onResetRequired();
+  //   }
+  // }
 }
 
 // Create singleton instance

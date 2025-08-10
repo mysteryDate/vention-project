@@ -34,11 +34,11 @@ export default class Atom extends Mesh {
     }
 
     this.rotation_axis = randomVector3().normalize();
-    this.rotation_speed = Math.random() / 100;
+    this.rotation_speed = Math.random() / 10;
 
     this.velocity = randomVector3().normalize().multiplyScalar(Config.velocity_multiplier);
 
-    this.position.copy(randomVector3().multiplyScalar(Config.simulation_size));
+    this.position.copy(randomVector3().multiplyScalar(Config.simulation_size - 1));
 
     this.setRotationFromAxisAngle(randomVector3().normalize(), Math.PI * 2 * Math.random());
   }
@@ -110,22 +110,22 @@ export default class Atom extends Mesh {
     const bb = this.getBoundingBox();
     // Bounce off the walls.
     if (bb.max.x > Config.simulation_size / 2) {
-      this.velocity.x *= -1;
+      this.velocity.x = -Math.abs(this.velocity.x);
     }
     if (bb.max.y > Config.simulation_size / 2) {
-      this.velocity.y *= -1;
+      this.velocity.y = -Math.abs(this.velocity.y);
     }
     if (bb.max.z > Config.simulation_size / 2) {
-      this.velocity.z *= -1;
+      this.velocity.z = -Math.abs(this.velocity.z);
     }
     if (bb.min.x < -Config.simulation_size / 2) {
-      this.velocity.x *= -1;
+      this.velocity.x = Math.abs(this.velocity.x);
     }
     if (bb.min.y < -Config.simulation_size / 2) {
-      this.velocity.y *= -1;
+      this.velocity.y = Math.abs(this.velocity.y);
     }
     if (bb.min.z < -Config.simulation_size / 2) {
-      this.velocity.z *= -1;
+      this.velocity.z = Math.abs(this.velocity.z);
     }
 
   }
