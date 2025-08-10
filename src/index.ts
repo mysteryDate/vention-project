@@ -21,7 +21,7 @@ import {
 
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 import Atom from "./atom";
-import CollisionDetector, {CollisionPair} from "./collision-detector";
+import CollisionDetector, {Collision} from "./collision-detector";
 import Config, {configManager} from "./config";
 import Molecule from "./molecule";
 
@@ -350,12 +350,12 @@ class Main {
       }
 
       // Collisions
-      const collisionPairs: CollisionPair[] = this.collisionDetector.detectCollisions();
+      const collisions: Collision[] = this.collisionDetector.detectCollisions();
       const collidingAtomKeys = new Set<number>();
 
-      for (const pair of collisionPairs) {
-        collidingAtomKeys.add(pair[0].key);
-        collidingAtomKeys.add(pair[1].key);
+      for (const collision of collisions) {
+        collidingAtomKeys.add(collision.pair[0].key);
+        collidingAtomKeys.add(collision.pair[1].key);
       }
 
       for (const atom of this.atoms) {
@@ -373,31 +373,33 @@ class Main {
         atom.last_collision += 1;
       }
 
-      for (const pair of collisionPairs) {
-        if (pair[2]) { // Sticky collision
-          pair[0].material = new MeshBasicMaterial({color: 0xff00ff});
-          pair[1].material = new MeshBasicMaterial({color: 0xff00ff});
-          if (!pair[1].is_in_molecule && !pair[0].is_in_molecule) {
-            const mol = new Molecule(pair[0], pair[1], this.scene);
-            pair[0].molecule_id = mol.id;
-            pair[1].molecule_id = mol.id;
-            pair[0].is_in_molecule = true;
-            pair[1].is_in_molecule = true;
+      for (const collision of collisions) {
+        const atom1 = collision.pair[0];
+        const atom2 = collision.pair[1];
+        if (collision.isSticking) { // Sticky collision
+          atom1.material = new MeshBasicMaterial({color: 0xff00ff});
+          atom2.material = new MeshBasicMaterial({color: 0xff00ff});
+          if (!atom2.is_in_molecule && !atom1.is_in_molecule) {
+            const mol = new Molecule(atom1, atom2, this.scene);
+            atom1.molecule_id = mol.id;
+            atom2.molecule_id = mol.id;
+            atom1.is_in_molecule = true;
+            atom2.is_in_molecule = true;
             this.scene.add(mol.pivotGroup);
             this.molecules[mol.id] = mol;
-          } else if (pair[0].is_in_molecule && !pair[1].is_in_molecule) {
-            const mol = pair[0].molecule;
-            mol.addAtom(pair[1]);
-            pair[1].molecule_id = mol.id;
-            pair[1].is_in_molecule = true;
-          } else if (pair[1].is_in_molecule && !pair[0].is_in_molecule) {
-            const mol = pair[1].molecule;
-            mol.addAtom(pair[0]);
-            pair[0].molecule_id = mol.id;
-            pair[0].is_in_molecule = true;
-          } else if (pair[1].is_in_molecule && pair[0].is_in_molecule) {
-            const mol = pair[0].molecule;
-            const mol2 = pair[1].molecule;
+          } else if (atom1.is_in_molecule && !atom2.is_in_molecule) {
+            const mol = atom1.molecule;
+            mol.addAtom(atom2);
+            atom2.molecule_id = mol.id;
+            atom2.is_in_molecule = true;
+          } else if (atom2.is_in_molecule && !atom1.is_in_molecule) {
+            const mol = atom2.molecule;
+            mol.addAtom(atom1);
+            atom1.molecule_id = mol.id;
+            atom1.is_in_molecule = true;
+          } else if (atom2.is_in_molecule && atom1.is_in_molecule) {
+            const mol = atom1.molecule;
+            const mol2 = atom2.molecule;
 
             if (mol && mol2) {
               mol.addMolecule(mol2);

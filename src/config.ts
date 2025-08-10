@@ -188,17 +188,6 @@ class ConfigManager {
       this.gui.destroy();
     }
   }
-
-  // // Preset configurations
-  // public loadPreset(preset: 'collision' | 'angled collision' | 'cradle' | 'lattice'): void {
-  //   // Update GUI controllers
-  //   this.gui.updateDisplay();
-
-  //   // Trigger reset
-  //   if (this.callbacks.onResetRequired) {
-  //     this.callbacks.onResetRequired();
-  //   }
-  // }
 }
 
 // Create singleton instance

@@ -3,7 +3,7 @@ import Atom from "./atom";
 import Config from "./config";
 import Molecule from "./molecule";
 
-export type CollisionPair = [Atom, Atom, boolean];
+export type CollisionPair = [Atom, Atom];
 type Axis = {
   dimension: string;
   getMin: (atom: Atom) => number;
@@ -439,8 +439,12 @@ class SATCollisionDetector {
   }
 }
 
+export type Collision = {
+  pair: CollisionPair,
+  isSticking: boolean,
+};
 export default class CollisionDetector extends SweepAndPrune {
-  detectCollisions(): CollisionPair[] {
+  detectCollisions(): Collision[] {
     // First, get potential collision pairs from sweep-and-prune (broad phase)
     const broadPhaseCollisions = this.detectSAPCollisions();
 
@@ -448,11 +452,14 @@ export default class CollisionDetector extends SweepAndPrune {
     // Though it feels poorly structured. This is an easy time to actually update the velocities and rotations of the
     // cubes.
     // TODO: don't break law of demeter
-    const preciseCollisions: CollisionPair[] = [];
+    const preciseCollisions: Collision[] = [];
     for (const [atomA, atomB] of broadPhaseCollisions) {
       const {isColliding, isSticking} = SATCollisionDetector.testAndResolveCollision(atomA, atomB);
       if (isColliding) {
-        preciseCollisions.push([atomA, atomB, isSticking]);
+        preciseCollisions.push({
+          pair: [atomA, atomB],
+          isSticking: isSticking
+        });
       }
     }
 
