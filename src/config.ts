@@ -45,7 +45,7 @@ class ConfigManager {
   constructor() {
     this.config = {
       simulation_size: 100,
-      atom_size: 5,
+      atom_size: 3,
       number_of_atoms: 10,
       velocity_multiplier: 2,
       atom_mass: 1,

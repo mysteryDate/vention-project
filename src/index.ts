@@ -117,7 +117,9 @@ class Main {
     // Recreate everything with new config
     this.updateMaterials();
     this.createScenario();
+
     this.collisionDetector = new CollisionDetector(this.atoms, Object.values(this.molecules));
+
 
     // Update bounds
     this.scene.remove(this.bounds);
@@ -144,6 +146,12 @@ class Main {
       this.scene.remove(molecule.pivotGroup);
       // Molecules contain atoms, so we don't need to dispose their geometry/materials separately
     });
+
+    for (const child of this.scene.children) {
+      if (child instanceof Mesh) {
+        this.scene.remove(child);
+      }
+    }
 
     this.atoms = [];
     this.molecules = {};
@@ -231,7 +239,6 @@ class Main {
     if (Config.scenario < 2) {
       // A simple tests of two large boxes colliding.
       Config.number_of_atoms = 2;
-      Config.atom_size = 20;
       this.createAtoms();
 
       this.atoms.forEach(atom => {
@@ -258,7 +265,6 @@ class Main {
     } else if (Config.scenario == 2) {
       // Newton's cradle
       Config.number_of_atoms = 4;
-      Config.atom_size = 15;
       this.createAtoms();
 
       this.atoms.forEach(atom => {
@@ -275,7 +281,6 @@ class Main {
     } else if (Config.scenario == 3) {
       // Stick test
       Config.number_of_atoms = 3;
-      Config.atom_size = 10;
       this.createAtoms();
 
       this.atoms.forEach(atom => {
@@ -295,22 +300,29 @@ class Main {
     } else if (Config.scenario == 4) {
       // One atom bouncing around a lattice.
       Config.number_of_atoms = 512;
-      Config.atom_size = 2;
 
       this.createAtoms();
+
+      const grid_size = Math.ceil(Math.pow(Config.number_of_atoms, 1 / 3));
+      const span = grid_size * Config.atom_size;
+      const spacing = (Config.simulation_size - span) / (grid_size + 1);
 
       this.atoms.forEach(atom => {
         if (atom.key < 5) {
           atom.velocity.normalize().multiplyScalar(0.5);
         } else {
-          const grid_size = Math.ceil(Math.pow(Config.number_of_atoms, 1 / 3));
           const x_rank = (atom.key % grid_size);
           const y_rank = Math.floor(atom.key / grid_size) % grid_size;
           const z_rank = Math.floor(atom.key / grid_size / grid_size);
 
-          atom.position.x = x_rank / grid_size * Config.simulation_size - Config.simulation_size / 2 + Config.atom_size * 2;
-          atom.position.y = y_rank / grid_size * Config.simulation_size - Config.simulation_size / 2 + Config.atom_size * 2;
-          atom.position.z = z_rank / grid_size * Config.simulation_size - Config.simulation_size / 2 + Config.atom_size * 2;
+
+
+          atom.position.x = spacing + x_rank * (spacing + Config.atom_size) - Config.simulation_size / 2 + Config.atom_size / 2;
+          atom.position.y = spacing + y_rank * (spacing + Config.atom_size) - Config.simulation_size / 2 + Config.atom_size / 2;
+          atom.position.z = spacing + z_rank * (spacing + Config.atom_size) - Config.simulation_size / 2 + Config.atom_size / 2;
+          // atom.position.x = x_rank / grid_size * Config.simulation_size - Config.simulation_size / 2;
+          // atom.position.y = y_rank / grid_size * Config.simulation_size - Config.simulation_size / 2;
+          // atom.position.z = z_rank / grid_size * Config.simulation_size - Config.simulation_size / 2;
           atom.velocity.multiplyScalar(0.0);
           atom.rotation_speed = 0;
           atom.rotation.setFromVector3(new Vector3(0, 0, 0));
