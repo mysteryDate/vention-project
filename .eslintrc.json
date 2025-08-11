@@ -1,0 +1,76 @@
+{
+  "env": {
+    "browser": true,
+    "es2021": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "@typescript-eslint/recommended"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module",
+    "project": "./tsconfig.json"
+  },
+  "plugins": [
+    "@typescript-eslint"
+  ],
+  "rules": {
+    // Code style rules
+    "indent": [
+      "error",
+      2
+    ],
+    "quotes": [
+      "error",
+      "double"
+    ],
+    "semi": [
+      "error",
+      "always"
+    ],
+    "no-trailing-spaces": "error",
+    "eol-last": "error",
+    // TypeScript specific
+    "@typescript-eslint/no-unused-vars": "error",
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/explicit-function-return-type": "warn",
+    "@typescript-eslint/no-inferrable-types": "error",
+    // Three.js and physics simulation specific
+    "no-magic-numbers": "off", // Physics constants are common
+    "@typescript-eslint/naming-convention": [
+      "error",
+      {
+        "selector": "variableLike",
+        "format": [
+          "camelCase",
+          "snake_case",
+          "UPPER_CASE"
+        ]
+      },
+      {
+        "selector": "property",
+        "format": [
+          "camelCase",
+          "snake_case"
+        ]
+      }
+    ],
+    // Performance related
+    "prefer-const": "error",
+    "no-var": "error",
+    // Code quality
+    "no-console": "warn",
+    "no-debugger": "error",
+    "complexity": [
+      "warn",
+      10
+    ]
+  },
+  "ignorePatterns": [
+    "node_modules/",
+    "dist/",
+    "build/"
+  ]
+}
