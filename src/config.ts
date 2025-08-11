@@ -1,6 +1,6 @@
 // config.ts - Enhanced version with dat.gui integration
 import * as dat from 'dat.gui';
-const DEFAULT_SCENARIO = "collision";
+const DEFAULT_SCENARIO = "lattice";
 
 export interface ConfigInterface {
   simulation_size: number;
