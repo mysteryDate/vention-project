@@ -36388,7 +36388,7 @@ Object.defineProperty(exports, "__esModule", {
 exports.configManager = void 0;
 // config.ts - Enhanced version with dat.gui integration
 var dat = __importStar(require("dat.gui"));
-var DEFAULT_SCENARIO = "collision";
+var DEFAULT_SCENARIO = "lattice";
 var ConfigManager = /*#__PURE__*/function () {
   function ConfigManager() {
     _classCallCheck(this, ConfigManager);
