@@ -36388,7 +36388,7 @@ Object.defineProperty(exports, "__esModule", {
 exports.configManager = void 0;
 // config.ts - Enhanced version with dat.gui integration
 var dat = __importStar(require("dat.gui"));
-var DEFAULT_SCENARIO = "lattice";
+var DEFAULT_SCENARIO = "collision";
 var ConfigManager = /*#__PURE__*/function () {
   function ConfigManager() {
     _classCallCheck(this, ConfigManager);
@@ -36396,7 +36396,7 @@ var ConfigManager = /*#__PURE__*/function () {
     // Properties that require simulation reset when changed
     this.RESET_REQUIRED_PROPS = new Set(['simulation_size', 'atom_size', 'number_of_atoms', 'scenario']);
     // Properties that can be updated in real-time
-    this.REALTIME_PROPS = new Set(['atom_mass', 'restitution_coefficient', 'use_normal_material', 'pauseSimulation']);
+    this.REALTIME_PROPS = new Set(['atom_mass', 'restitution_coefficient', 'use_normal_material', 'pauseSimulation', 'speed_up', 'slow_down']);
     // Scenario options for dropdown
     this.SCENARIO_OPTIONS = {
       'Random Gas': 'random',
@@ -36425,13 +36425,12 @@ var ConfigManager = /*#__PURE__*/function () {
       this.gui = new dat.GUI({
         width: 300
       });
-      // Simulation folder
+      this.gui.add(this.config, 'scenario', this.SCENARIO_OPTIONS).name('Scenario').onChange(function () {
+        return _this.handlePropertyChange('scenario');
+      });
       var simulationFolder = this.gui.addFolder('Simulation');
       simulationFolder.add(this.config, 'simulation_size', 50, 200).name('Simulation Size').onChange(function () {
         return _this.handlePropertyChange('simulation_size');
-      });
-      simulationFolder.add(this.config, 'scenario', this.SCENARIO_OPTIONS).name('Scenario').onChange(function () {
-        return _this.handlePropertyChange('scenario');
       });
       simulationFolder.add(this.config, 'number_of_atoms', 2, 1000, 1).name('Number of Atoms').onChange(function () {
         return _this.handlePropertyChange('number_of_atoms');
@@ -36439,6 +36438,18 @@ var ConfigManager = /*#__PURE__*/function () {
       simulationFolder.add(this.config, 'pauseSimulation').name('Pause').onChange(function () {
         return _this.handlePropertyChange('pauseSimulation');
       });
+      this.config.speedUp = function () {
+        if (_this.callbacks.onRealTimeUpdate) {
+          _this.callbacks.onRealTimeUpdate("speedUp", false);
+        }
+      };
+      simulationFolder.add(this.config, 'speedUp').name('Speed Up Simulation');
+      this.config.slowDown = function () {
+        if (_this.callbacks.onRealTimeUpdate) {
+          _this.callbacks.onRealTimeUpdate("slowDown", false);
+        }
+      };
+      simulationFolder.add(this.config, 'slowDown').name('Slow Down Simulation');
       // Add reset button
       this.config.resetSimulation = function () {
         if (_this.callbacks.onResetRequired) {
@@ -36539,9 +36550,9 @@ var ConfigManager = /*#__PURE__*/function () {
         case 'cradle':
           Object.assign(this.config, {
             scenario: 'cradle',
-            number_of_atoms: 5,
+            number_of_atoms: 3,
             atom_size: 15,
-            form_molecules: false,
+            form_molecules: true,
             restitution_coefficient: 0.7
           });
           break;
@@ -36549,15 +36560,15 @@ var ConfigManager = /*#__PURE__*/function () {
           Object.assign(this.config, {
             scenario: 'lattice',
             number_of_atoms: 512,
-            atom_size: 2,
+            atom_size: 3,
             form_molecules: false
           });
           break;
         case 'random':
           Object.assign(this.config, {
             scenario: 'random',
-            number_of_atoms: 100,
-            atom_size: 2,
+            number_of_atoms: 150,
+            atom_size: 3,
             form_molecules: true
           });
           break;
@@ -36920,6 +36931,7 @@ function rebuildPivotSystemPreservePosition(parentObject, scene, centerOfMass) {
   return newPivotGroup;
 }
 var Molecule = /*#__PURE__*/function (_three_1$Object3D) {
+  // TODO: This is a kludge to keep the simulation looking better because otherwise molecules are too bouncy.
   function Molecule(atom1, atom2, scene) {
     var _this;
     _classCallCheck(this, Molecule);
@@ -37080,8 +37092,8 @@ var Molecule = /*#__PURE__*/function (_three_1$Object3D) {
       }
     }
   }]);
-}(three_1.Object3D); // TODO: This is a kludge to keep the simulation looking better because otherwise molecules are too bouncy.
-Molecule.lerp_amt = 0.05;
+}(three_1.Object3D);
+Molecule.lerp_amt = 0.5;
 exports.default = Molecule;
 },{"three":"node_modules/three/build/three.module.js","./config":"src/config.ts"}],"src/collision-detector.ts":[function(require,module,exports) {
 "use strict";
@@ -37415,21 +37427,33 @@ var SATCollisionDetector = /*#__PURE__*/function () {
       function lerp(a, b, t) {
         return a + t * (b - a);
       }
+      function slerp(startVec, endVec, t) {
+        var dot = startVec.dot(endVec);
+        var theta = Math.acos(three_1.MathUtils.clamp(dot, -1, 1)); // Clamp to handle floating point errors
+        if (theta === 0) {
+          return startVec.clone();
+        }
+        var sinTheta = Math.sin(theta);
+        var s0 = Math.sin((1 - t) * theta) / sinTheta;
+        var s1 = Math.sin(t * theta) / sinTheta;
+        var result = startVec.clone().multiplyScalar(s0).add(endVec.clone().multiplyScalar(s1));
+        return result.normalize();
+      }
       // I'm intentionally slowing down rotational momentum transfer from atoms to molecules here to keep things stable.
       // Update rotation axis and speed for A
       if (!(objA instanceof molecule_1.default)) {
         objA.rotation_speed = newAngularVelA.length();
-        objA.rotation_axis = newAngularVelA.normalize();
+        objA.rotation_axis = newAngularVelA.clone().normalize();
       } else {
-        objB.rotation_axis.lerp(newAngularVelA.normalize(), massA / totalMass * molecule_1.default.lerp_amt).normalize();
-        objA.rotation_speed = lerp(objA.rotation_speed, newAngularVelA.length(), massB / totalMass * molecule_1.default.lerp_amt);
+        objA.rotation_axis = slerp(objA.rotation_axis, newAngularVelA.clone().normalize(), massA / totalMass * molecule_1.default.lerp_amt);
+        objA.rotation_speed = lerp(objA.rotation_speed, newAngularVelA.length(), massA / totalMass * molecule_1.default.lerp_amt);
       }
       // Update rotation axis and speed for B
       if (!(objB instanceof molecule_1.default)) {
         objB.rotation_speed = newAngularVelB.length();
-        objB.rotation_axis = newAngularVelB.normalize();
+        objB.rotation_axis = newAngularVelB.clone().normalize();
       } else {
-        objB.rotation_axis.lerp(newAngularVelB.normalize(), massA / totalMass * molecule_1.default.lerp_amt).normalize();
+        objB.rotation_axis = slerp(objB.rotation_axis, newAngularVelB.clone().normalize(), massA / totalMass * molecule_1.default.lerp_amt);
         objB.rotation_speed = lerp(objB.rotation_speed, newAngularVelA.length(), massA / totalMass * molecule_1.default.lerp_amt);
       }
     }
@@ -37590,6 +37614,7 @@ var Main = /*#__PURE__*/function () {
     key: "handleRealTimeUpdate",
     value: function handleRealTimeUpdate(property, value) {
       var _this2 = this;
+      var speedChangeAmt = 0.2;
       switch (property) {
         case 'use_normal_material':
           this.updateMaterials();
@@ -37601,6 +37626,46 @@ var Main = /*#__PURE__*/function () {
           break;
         case 'pauseSimulation':
           this._isAnimating = !value;
+          break;
+        case 'speedUp':
+          var _iterator = _createForOfIteratorHelper(this.atoms),
+            _step;
+          try {
+            for (_iterator.s(); !(_step = _iterator.n()).done;) {
+              var atom = _step.value;
+              atom.velocity.multiplyScalar(1 + speedChangeAmt);
+              atom.rotation_speed *= 1 + speedChangeAmt;
+            }
+          } catch (err) {
+            _iterator.e(err);
+          } finally {
+            _iterator.f();
+          }
+          for (var _i = 0, _Object$values = Object.values(this.molecules); _i < _Object$values.length; _i++) {
+            var molecule = _Object$values[_i];
+            molecule.velocity.multiplyScalar(1 + speedChangeAmt);
+            molecule.rotation_speed *= 1 + speedChangeAmt;
+          }
+          break;
+        case 'slowDown':
+          var _iterator2 = _createForOfIteratorHelper(this.atoms),
+            _step2;
+          try {
+            for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+              var _atom = _step2.value;
+              _atom.velocity.multiplyScalar(1 - speedChangeAmt);
+              _atom.rotation_speed *= 1 - speedChangeAmt;
+            }
+          } catch (err) {
+            _iterator2.e(err);
+          } finally {
+            _iterator2.f();
+          }
+          for (var _i2 = 0, _Object$values2 = Object.values(this.molecules); _i2 < _Object$values2.length; _i2++) {
+            var _molecule = _Object$values2[_i2];
+            _molecule.velocity.multiplyScalar(1 - speedChangeAmt);
+            _molecule.rotation_speed *= 1 - speedChangeAmt;
+          }
           break;
         case 'atom_mass':
         case 'restitution_coefficient':
@@ -37647,19 +37712,19 @@ var Main = /*#__PURE__*/function () {
         _this3._scene.remove(molecule.pivotGroup);
         // Molecules contain atoms, so we don't need to dispose their geometry/materials separately
       });
-      var _iterator = _createForOfIteratorHelper(this._scene.children),
-        _step;
+      var _iterator3 = _createForOfIteratorHelper(this._scene.children),
+        _step3;
       try {
-        for (_iterator.s(); !(_step = _iterator.n()).done;) {
-          var child = _step.value;
+        for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+          var child = _step3.value;
           if (child instanceof three_1.Mesh) {
             this._scene.remove(child);
           }
         }
       } catch (err) {
-        _iterator.e(err);
+        _iterator3.e(err);
       } finally {
-        _iterator.f();
+        _iterator3.f();
       }
       this.atoms = [];
       this.molecules = {};
@@ -37714,7 +37779,7 @@ var Main = /*#__PURE__*/function () {
       // Init camera.
       var aspect = window.innerWidth / window.innerHeight;
       this._camera = new three_1.PerspectiveCamera(50, aspect, 1, 5000);
-      this._camera.position.z = 200;
+      this._camera.position.z = 150;
       // Init renderer.
       this._renderer = new three_1.WebGLRenderer({
         powerPreference: "high-performance",
@@ -37766,7 +37831,7 @@ var Main = /*#__PURE__*/function () {
     value: function createScenario() {
       if (config_1.default.scenario === 'collision' || config_1.default.scenario === 'angled_collision') {
         // A simple tests of two large boxes colliding.
-        this.createAtoms(config_1.default.number_of_atoms);
+        this.createAtoms(2);
         this.atoms.forEach(function (atom) {
           atom.velocity.multiplyScalar(0);
           atom.position.multiplyScalar(0);
@@ -37857,30 +37922,30 @@ var Main = /*#__PURE__*/function () {
       config_1.configManager.updateInfo(this._fps, this.atoms.length, Object.keys(this.molecules).length);
       // Only update simulation if not paused
       if (this._isAnimating) {
-        var _iterator2 = _createForOfIteratorHelper(this.atoms),
-          _step2;
+        var _iterator4 = _createForOfIteratorHelper(this.atoms),
+          _step4;
         try {
-          for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
-            var atom = _step2.value;
+          for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+            var atom = _step4.value;
             atom.update();
           }
         } catch (err) {
-          _iterator2.e(err);
+          _iterator4.e(err);
         } finally {
-          _iterator2.f();
+          _iterator4.f();
         }
-        for (var _i = 0, _Object$values = Object.values(this.molecules); _i < _Object$values.length; _i++) {
-          var molecule = _Object$values[_i];
+        for (var _i3 = 0, _Object$values3 = Object.values(this.molecules); _i3 < _Object$values3.length; _i3++) {
+          var molecule = _Object$values3[_i3];
           molecule.update();
         }
         // Collisions
         var collisions = this._collisionDetector.detectCollisions();
         var collidingAtomKeys = new Set();
-        var _iterator3 = _createForOfIteratorHelper(collisions),
-          _step3;
+        var _iterator5 = _createForOfIteratorHelper(collisions),
+          _step5;
         try {
-          for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
-            var collision = _step3.value;
+          for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+            var collision = _step5.value;
             collidingAtomKeys.add(collision.pair[0].key);
             collidingAtomKeys.add(collision.pair[1].key);
             var atom1 = collision.pair[0];
@@ -37917,29 +37982,29 @@ var Main = /*#__PURE__*/function () {
           }
           // Highlight colliding atoms.
         } catch (err) {
-          _iterator3.e(err);
+          _iterator5.e(err);
         } finally {
-          _iterator3.f();
+          _iterator5.f();
         }
-        var _iterator4 = _createForOfIteratorHelper(this.atoms),
-          _step4;
+        var _iterator6 = _createForOfIteratorHelper(this.atoms),
+          _step6;
         try {
-          for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
-            var _atom = _step4.value;
-            if (_atom.last_collision < 40) {
+          for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
+            var _atom2 = _step6.value;
+            if (_atom2.last_collision < 40) {
               var material = new three_1.MeshBasicMaterial();
-              var bright = (40 - _atom.last_collision) / (40 * 4) + 0.75;
+              var bright = (40 - _atom2.last_collision) / (40 * 4) + 0.75;
               material.color.set(new three_1.Color(bright, bright, bright));
-              _atom.material = material;
+              _atom2.material = material;
             } else {
-              _atom.material = this._notCollidingMaterial;
+              _atom2.material = this._notCollidingMaterial;
             }
-            _atom.last_collision += 1;
+            _atom2.last_collision += 1;
           }
         } catch (err) {
-          _iterator4.e(err);
+          _iterator6.e(err);
         } finally {
-          _iterator4.f();
+          _iterator6.f();
         }
       }
       this._controls.update();
@@ -38010,7 +38075,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "53699" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "55836" + '/');
   ws.onmessage = function (event) {
     checkedAssets = {};
     assetsToAccept = [];
