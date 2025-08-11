@@ -1,4 +1,4 @@
-import {Matrix3, Vector3} from "three";
+import {MathUtils, Matrix3, Vector3} from "three";
 import Atom from "./atom";
 import Config from "./config";
 import {areMatchingFacesColliding} from "./matching-faces-test";
@@ -311,22 +311,39 @@ class SATCollisionDetector {
       return a + t * (b - a);
     }
 
+    function slerp(startVec: Vector3, endVec: Vector3, t: number): Vector3 {
+      const dot = startVec.dot(endVec);
+      const theta = Math.acos(MathUtils.clamp(dot, -1, 1)); // Clamp to handle floating point errors
+
+      if (theta === 0) {
+        return startVec.clone();
+      }
+
+      const sinTheta = Math.sin(theta);
+      const s0 = Math.sin((1 - t) * theta) / sinTheta;
+      const s1 = Math.sin(t * theta) / sinTheta;
+
+      const result = startVec.clone().multiplyScalar(s0).add(endVec.clone().multiplyScalar(s1));
+      return result.normalize();
+    }
+
+
     // I'm intentionally slowing down rotational momentum transfer from atoms to molecules here to keep things stable.
     // Update rotation axis and speed for A
     if (!(objA instanceof Molecule)) {
       objA.rotation_speed = newAngularVelA.length();
-      objA.rotation_axis = newAngularVelA.normalize();
+      objA.rotation_axis = newAngularVelA.clone().normalize();
     } else {
-      objB.rotation_axis.lerp(newAngularVelA.normalize(), massA / totalMass * Molecule.lerp_amt).normalize();
-      objA.rotation_speed = lerp(objA.rotation_speed, newAngularVelA.length(), massB / totalMass * Molecule.lerp_amt);
+      objA.rotation_axis = slerp(objA.rotation_axis, newAngularVelA.clone().normalize(), massA / totalMass * Molecule.lerp_amt);
+      objA.rotation_speed = lerp(objA.rotation_speed, newAngularVelA.length(), massA / totalMass * Molecule.lerp_amt);
     }
 
     // Update rotation axis and speed for B
     if (!(objB instanceof Molecule)) {
       objB.rotation_speed = newAngularVelB.length();
-      objB.rotation_axis = newAngularVelB.normalize();
+      objB.rotation_axis = newAngularVelB.clone().normalize();
     } else {
-      objB.rotation_axis.lerp(newAngularVelB.normalize(), massA / totalMass * Molecule.lerp_amt).normalize();
+      objB.rotation_axis = slerp(objB.rotation_axis, newAngularVelB.clone().normalize(), massA / totalMass * Molecule.lerp_amt);
       objB.rotation_speed = lerp(objB.rotation_speed, newAngularVelA.length(), massA / totalMass * Molecule.lerp_amt);
     }
   }

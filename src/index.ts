@@ -71,6 +71,7 @@ class Main {
   }
 
   private handleRealTimeUpdate(property: string, value: any): void {
+    const speedChangeAmt = 0.2;
     switch (property) {
       case 'use_normal_material':
         this.updateMaterials();
@@ -83,6 +84,28 @@ class Main {
 
       case 'pauseSimulation':
         this._isAnimating = !value;
+        break;
+
+      case 'speedUp':
+        for (const atom of this.atoms) {
+          atom.velocity.multiplyScalar(1 + speedChangeAmt);
+          atom.rotation_speed *= 1 + speedChangeAmt;
+        }
+        for (const molecule of Object.values(this.molecules)) {
+          molecule.velocity.multiplyScalar(1 + speedChangeAmt);
+          molecule.rotation_speed *= 1 + speedChangeAmt;
+        }
+        break;
+
+      case 'slowDown':
+        for (const atom of this.atoms) {
+          atom.velocity.multiplyScalar(1 - speedChangeAmt);
+          atom.rotation_speed *= 1 - speedChangeAmt;
+        }
+        for (const molecule of Object.values(this.molecules)) {
+          molecule.velocity.multiplyScalar(1 - speedChangeAmt);
+          molecule.rotation_speed *= 1 - speedChangeAmt;
+        }
         break;
 
       case 'atom_mass':
@@ -172,7 +195,7 @@ class Main {
     // Init camera.
     const aspect = window.innerWidth / window.innerHeight;
     this._camera = new PerspectiveCamera(50, aspect, 1, 5000);
-    this._camera.position.z = 200;
+    this._camera.position.z = 150;
 
     // Init renderer.
     this._renderer = new WebGLRenderer({
@@ -223,7 +246,7 @@ class Main {
   private createScenario() {
     if (Config.scenario === 'collision' || Config.scenario === 'angled_collision') {
       // A simple tests of two large boxes colliding.
-      this.createAtoms(Config.number_of_atoms);
+      this.createAtoms(2);
       this.atoms.forEach(atom => {
         atom.velocity.multiplyScalar(0);
         atom.position.multiplyScalar(0);

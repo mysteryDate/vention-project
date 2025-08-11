@@ -1,6 +1,6 @@
 // config.ts - Enhanced version with dat.gui integration
 import * as dat from 'dat.gui';
-const DEFAULT_SCENARIO = "lattice";
+const DEFAULT_SCENARIO = "collision";
 
 export interface ConfigInterface {
   simulation_size: number;
@@ -11,6 +11,8 @@ export interface ConfigInterface {
   scenario: string;
   use_normal_material: boolean;
   form_molecules: boolean;
+  speedUp?: () => void;
+  slowDown?: () => void;
 
   // GUI control methods
   resetSimulation?: () => void;
@@ -38,7 +40,9 @@ class ConfigManager {
     'atom_mass',
     'restitution_coefficient',
     'use_normal_material',
-    'pauseSimulation'
+    'pauseSimulation',
+    'speed_up',
+    'slow_down',
   ]);
 
   // Scenario options for dropdown
@@ -69,16 +73,15 @@ class ConfigManager {
   private initializeGUI(): void {
     this.gui = new dat.GUI({width: 300});
 
-    // Simulation folder
+    this.gui.add(this.config, 'scenario', this.SCENARIO_OPTIONS)
+    .name('Scenario')
+    .onChange(() => this.handlePropertyChange('scenario'));
+
     const simulationFolder = this.gui.addFolder('Simulation');
 
     simulationFolder.add(this.config, 'simulation_size', 50, 200)
       .name('Simulation Size')
       .onChange(() => this.handlePropertyChange('simulation_size'));
-
-    simulationFolder.add(this.config, 'scenario', this.SCENARIO_OPTIONS)
-      .name('Scenario')
-      .onChange(() => this.handlePropertyChange('scenario'));
 
     simulationFolder.add(this.config, 'number_of_atoms', 2, 1000, 1)
       .name('Number of Atoms')
@@ -87,6 +90,20 @@ class ConfigManager {
     simulationFolder.add(this.config, 'pauseSimulation')
       .name('Pause')
       .onChange(() => this.handlePropertyChange('pauseSimulation'));
+
+    this.config.speedUp = () => {
+      if (this.callbacks.onRealTimeUpdate) {
+        this.callbacks.onRealTimeUpdate("speedUp", false);
+      }
+    }
+    simulationFolder.add(this.config, 'speedUp').name('Speed Up Simulation');
+
+    this.config.slowDown = () => {
+      if (this.callbacks.onRealTimeUpdate) {
+        this.callbacks.onRealTimeUpdate("slowDown", false);
+      }
+    }
+    simulationFolder.add(this.config, 'slowDown').name('Slow Down Simulation');
 
     // Add reset button
     this.config.resetSimulation = () => {
@@ -199,9 +216,9 @@ class ConfigManager {
       case 'cradle':
         Object.assign(this.config, {
           scenario: 'cradle',
-          number_of_atoms: 5,
+          number_of_atoms: 3,
           atom_size: 15,
-          form_molecules: false,
+          form_molecules: true,
           restitution_coefficient: 0.7,
         });
         break;
@@ -209,15 +226,15 @@ class ConfigManager {
         Object.assign(this.config, {
           scenario: 'lattice',
           number_of_atoms: 512,
-          atom_size: 2,
+          atom_size: 3,
           form_molecules: false,
         });
         break;
       case 'random':
         Object.assign(this.config, {
           scenario: 'random',
-          number_of_atoms: 100,
-          atom_size: 2,
+          number_of_atoms: 150,
+          atom_size: 3,
           form_molecules: true,
         });
         break;

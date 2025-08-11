@@ -31,6 +31,8 @@ function rebuildPivotSystemPreservePosition(
 }
 
 export default class Molecule extends Object3D {
+  public static lerp_amt: number = 0.5;
+
   public atoms: Atom[] = [];
   public rotation_axis: Vector3 = new Vector3(0, 0, 0).normalize();
   public rotation_speed: number = 0;
@@ -42,7 +44,6 @@ export default class Molecule extends Object3D {
 
   public boundingBox: Box3 = new Box3();
   // TODO: This is a kludge to keep the simulation looking better because otherwise molecules are too bouncy.
-  public static lerp_amt: number = 0.05;
 
   constructor(atom1: Atom, atom2: Atom, scene: Scene) {
     super();
