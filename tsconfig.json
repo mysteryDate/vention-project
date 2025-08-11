@@ -2,15 +2,12 @@
   "compilerOptions": {
     "strict": true,
     "target": "es2019",
+    "lib": ["es2019", "DOM"],
     "module": "commonjs",
     "jsx": "preserve",
     "esModuleInterop": true,
     "sourceMap": true,
     "allowJs": true,
-    "lib": [
-      "es6",
-      "dom"
-    ],
     "rootDir": "src",
     "moduleResolution": "node",
     "strictPropertyInitialization": false,

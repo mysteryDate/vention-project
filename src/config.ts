@@ -1,11 +1,11 @@
 // config.ts - Enhanced version with dat.gui integration
 import * as dat from 'dat.gui';
+const DEFAULT_SCENARIO = "lattice";
 
 export interface ConfigInterface {
   simulation_size: number;
   atom_size: number;
   number_of_atoms: number;
-  velocity_multiplier: number;
   atom_mass: number;
   restitution_coefficient: number;
   scenario: string;
@@ -21,7 +21,7 @@ class ConfigManager {
   private gui: dat.GUI;
   private config: ConfigInterface;
   private callbacks: {
-    onResetRequired?: () => void;
+    onResetRequired?: (property?: string, value?: any) => void;
     onRealTimeUpdate?: (property: string, value: any) => void;
   } = {};
 
@@ -35,7 +35,6 @@ class ConfigManager {
 
   // Properties that can be updated in real-time
   private readonly REALTIME_PROPS = new Set([
-    'velocity_multiplier',
     'atom_mass',
     'restitution_coefficient',
     'use_normal_material',
@@ -54,14 +53,13 @@ class ConfigManager {
   constructor() {
     this.config = {
       simulation_size: 100,
-      atom_size: 3,
-      number_of_atoms: 10,
-      velocity_multiplier: 2,
+      atom_size: 4,
+      number_of_atoms: 200,
       atom_mass: 1,
       restitution_coefficient: 1.0,
-      scenario: "angled_collision",
+      scenario: "cradle",
       use_normal_material: false,
-      form_molecules: false,
+      form_molecules: true,
       pauseSimulation: false
     };
 
@@ -111,10 +109,6 @@ class ConfigManager {
       .name('Atom Mass')
       .onChange(() => this.handlePropertyChange('atom_mass'));
 
-    atomFolder.add(this.config, 'velocity_multiplier', 0, 10)
-      .name('Velocity Multiplier')
-      .onChange(() => this.handlePropertyChange('velocity_multiplier'));
-
     atomFolder.add(this.config, 'use_normal_material')
       .name('Normal Material')
       .onChange(() => this.handlePropertyChange('use_normal_material'));
@@ -153,7 +147,7 @@ class ConfigManager {
   private handlePropertyChange(property: string): void {
     if (this.RESET_REQUIRED_PROPS.has(property)) {
       if (this.callbacks.onResetRequired) {
-        this.callbacks.onResetRequired();
+        this.callbacks.onResetRequired(property, this.config[property as keyof ConfigInterface]);
       }
     } else if (this.REALTIME_PROPS.has(property)) {
       if (this.callbacks.onRealTimeUpdate) {
@@ -164,7 +158,7 @@ class ConfigManager {
 
   // Public methods
   public setCallbacks(callbacks: {
-    onResetRequired?: () => void;
+    onResetRequired?: (property?: string, value?: any) => void;
     onRealTimeUpdate?: (property: string, value: any) => void;
   }): void {
     this.callbacks = callbacks;
@@ -183,6 +177,61 @@ class ConfigManager {
     }
   }
 
+  // Preset configurations
+  public loadPreset(preset: 'collision' | 'angled_collision' |'cradle' | 'lattice' | 'random'): void {
+    switch (preset) {
+      case 'collision':
+        Object.assign(this.config, {
+          scenario: 'collision',
+          number_of_atoms: 2,
+          atom_size: 20,
+          form_molecules: false,
+        });
+        break;
+      case 'angled_collision':
+        Object.assign(this.config, {
+          scenario: 'angled_collision',
+          number_of_atoms: 2,
+          atom_size: 20,
+          form_molecules: false,
+        });
+        break;
+      case 'cradle':
+        Object.assign(this.config, {
+          scenario: 'cradle',
+          number_of_atoms: 5,
+          atom_size: 15,
+          form_molecules: false,
+          restitution_coefficient: 0.7,
+        });
+        break;
+      case 'lattice':
+        Object.assign(this.config, {
+          scenario: 'lattice',
+          number_of_atoms: 512,
+          atom_size: 2,
+          form_molecules: false,
+        });
+        break;
+      case 'random':
+        Object.assign(this.config, {
+          scenario: 'random',
+          number_of_atoms: 100,
+          atom_size: 2,
+          form_molecules: true,
+        });
+        break;
+    }
+
+    // Update GUI controllers
+    this.gui.updateDisplay();
+
+    // Trigger reset
+    if (this.callbacks.onResetRequired) {
+      this.callbacks.onResetRequired();
+    }
+  }
+
   public destroy(): void {
     if (this.gui) {
       this.gui.destroy();
@@ -192,6 +241,7 @@ class ConfigManager {
 
 // Create singleton instance
 const configManager = new ConfigManager();
+configManager.loadPreset(DEFAULT_SCENARIO);
 
 // Export both the manager and the config for backward compatibility
 export default configManager.getConfig();

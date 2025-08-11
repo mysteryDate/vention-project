@@ -1,6 +1,7 @@
 import {Matrix3, Vector3} from "three";
 import Atom from "./atom";
 import Config from "./config";
+import {areMatchingFacesColliding} from "./matching-faces-test";
 import Molecule from "./molecule";
 
 export type CollisionPair = [Atom, Atom];
@@ -11,6 +12,10 @@ type Axis = {
 }
 
 // https://en.wikipedia.org/wiki/Sweep_and_prune
+// Basically store pointers to all of the atoms, sorted by their extents when projected along each axis.
+// In order for two atoms to be colliding, they MUST be overlapping on all three axes.
+// Atom pairs that pass this test are passed along to the SAT (separating axis theorem) detector for a more thorough
+// collision test.
 class SweepAndPrune {
   private _atoms: Atom[];
   private _sortedAxes: Map<string, Atom[]>; // Atoms stored sorted by x, y, and z axis.
@@ -40,7 +45,7 @@ class SweepAndPrune {
   }
 
 
-  // TODO: string is not ideal
+  // Return a list of "atomA.key-atomB.key" strings for every pair of atoms that are overlapping in all axes.
   private sweepAxis(axis: Axis): Set<string> {
     const overlappingPairs = new Set<string>();
     const sorted = this._sortedAxes.get(axis.dimension)!;
@@ -51,6 +56,7 @@ class SweepAndPrune {
       for (let j = i + 1; j < sorted.length; j++) {
         const atomB = sorted[j];
 
+        // If the two atoms are separated, they are not colliding.
         if (axis.getMin(atomB) > axis.getMax(atomA)) {
           break;
         }
@@ -64,9 +70,8 @@ class SweepAndPrune {
     return overlappingPairs;
   }
 
-  // Quick collision detection for overlapping axis-aligned boudning boxes.
   detectSAPCollisions(): CollisionPair[] {
-    // Sort AABBs on all axes and get overlaps.
+    // Sort axis aligned bounding boxes on all axes and get overlaps.
     const axisOverlaps = this._axes.map(axis => {
       this.sortAxis(axis);
       return this.sweepAxis(axis);
@@ -86,7 +91,7 @@ class SweepAndPrune {
           if ((cubeA.molecule_id == cubeB.molecule_id) && cubeA.is_in_molecule) {
             // Ignore cubes colliding within their own molecules.
           } else {
-            collisionPairs.push([cubeA, cubeB, false]);
+            collisionPairs.push([cubeA, cubeB]);
           }
         }
       }
@@ -96,37 +101,35 @@ class SweepAndPrune {
   }
 }
 
-// A rotated bounding box, don't need the size because it's always the same.
+// A rotated bounding box
+// I don't need the size because it's always the same.
 interface OrientedBoundingBox {
   center: Vector3;
-  axes: Vector3[]; // 3 orthonormal vectors representing local coordinate system
+  axes: Vector3[]; // Equivalent to the orientation of the box, its local coordinate system.
 }
 
 interface CollisionInfo {
-  atomA: Atom;
-  atomB: Atom;
-  contactPoint: Vector3;
-  contactNormal: Vector3;
-  penetrationDepth: number;
-  isMatchingFaces: boolean;
-  distance: number;
+  atomA: Atom; // First atom of the collision.
+  atomB: Atom; // Second atom of the collision.
+  contactPoint: Vector3; // In world space, where the collision is happening.
+  contactNormal: Vector3; // The direction that would take the smallest delta to push the atoms apart.
+  penetrationDepth: number; // How far the overlap is between atomA and atomB.
+  isMatchingFaces: boolean; // For sticking, if the two faces have the same color.
 }
 
 // Separating axis theorem. Like shining a flashlight perpendicular to each axis of each atom (3 + 3 = 6 total), and
 // then along each combined axis, which is the normalized cross product of each combination of axes (3 x 3 = 9 total).
-// So 15 total checks take place. This is a big heavy, which is why we do the "broad phase" sweep and prune first.
+// So 15 total checks take place. This is a bit heavy, which is why we do the "broad phase" sweep and prune first.
 // https://dyn4j.org/2010/01/sat/
 class SATCollisionDetector {
+  // For testing that the combined axes aren't degenerate.
   private static readonly EPSILON = 1e-6;
 
-  private static meshToOBB(atom: Atom): OrientedBoundingBox {
-    // Get the world position.
+  private static meshToOrientedBoundingBox(atom: Atom): OrientedBoundingBox {
     atom.updateMatrixWorld(true);
-    const center = new Vector3();
-    atom.getWorldPosition(center);
+    const center = atom.getWorldPosition(new Vector3());
 
     // Extract rotation matrix from the mesh's world matrix
-    // atom.updateMatrixWorld(true);
     const rotationMatrix = new Matrix3().setFromMatrix4(atom.matrixWorld);
 
     // Get the local axes from rotation matrix
@@ -159,7 +162,9 @@ class SATCollisionDetector {
     };
   }
 
-  // Like sweep and prune, objects that are colliding need their extents to overlap on relevant axes.
+  // Like sweep and prune, objects that are colliding need their extents to overlap on all axes.
+  // The difference here is that there are no false positives. i.e. objects that overlap on all axes are known to be
+  // colliding.
   private static testSeparatingAxis(
     obbA: OrientedBoundingBox,
     obbB: OrientedBoundingBox,
@@ -176,76 +181,8 @@ class SATCollisionDetector {
   }
 
   private static findCollisionInfo(atomA: Atom, atomB: Atom): CollisionInfo | null {
-    interface vert {
-      index: number;
-      position: Vector3;
-    }
-    function getWorldSpaceVertices(atom: Atom): vert[] {
-        /*
-               E-------F
-              /|      /|
-             / |     / |
-            A--|----B  |
-            |  G----|--H
-            | /     | /
-            |/      |/
-            C-------D
-            */
-        const vertices = [
-          new Vector3(-0.5, 0.5, -0.5).multiplyScalar(Config.atom_size), // A
-          new Vector3(0.5, 0.5, -0.5).multiplyScalar(Config.atom_size), // B
-          new Vector3(-0.5, -0.5, -0.5).multiplyScalar(Config.atom_size), // C
-          new Vector3(0.5, -0.5, -0.5).multiplyScalar(Config.atom_size), // D
-          new Vector3(-0.5, 0.5, 0.5).multiplyScalar(Config.atom_size), // E
-          new Vector3(0.5, 0.5, 0.5).multiplyScalar(Config.atom_size), // F
-          new Vector3(-0.5, -0.5, 0.5).multiplyScalar(Config.atom_size), // G
-          new Vector3(0.5, -0.5, 0.5).multiplyScalar(Config.atom_size), // H
-        ];
-
-        const worldVertices: vert[] = []
-        // Extract all vertex positions and transform to world coordinates
-        vertices.forEach((vertex, index) => {
-            const vertexWorld = vertex.clone();
-
-            // Transform to world coordinates
-            vertexWorld.applyMatrix4(atom.matrixWorld);
-            const v: vert = {index: index, position: vertexWorld};
-            worldVertices.push(v);
-        });
-
-        return worldVertices;
-    }
-
-    function vertexIndexToFaces(index: number): number[] {
-      // Look at the diagram in getWorldSpaceVertices.
-      // defining the faces in order as: [front (0), back (1), left (2), right (3), top (4), bottom (5)]
-      switch (index) {
-        case 0: // A
-          return [0, 2, 4]; // front left top
-        case 1: // B
-          return [0, 3, 4]; // front right top
-        case 2: // C
-          return [0, 2, 5]; // front left bottom
-        case 3: // D
-          return [0, 3, 5]; // front right bottom
-        case 4: // E
-          return [1, 2, 4]; // back left top
-        case 5: // F
-          return [1, 3, 4]; // back right top
-        case 6: // G
-          return [1, 2, 5]; // back left bottom
-        case 7: // H
-          return [1, 3, 5]; // back right bottom
-      }
-
-
-      return [-1, -1, -1];
-    }
-
-
-    const obbA = this.meshToOBB(atomA);
-    const obbB = this.meshToOBB(atomB);
-
+    const obbA = this.meshToOrientedBoundingBox(atomA);
+    const obbB = this.meshToOrientedBoundingBox(atomB);
 
     let minOverlap = Infinity;
     let collisionNormal = new Vector3();
@@ -283,41 +220,13 @@ class SATCollisionDetector {
       }
     }
 
-    // Approximate contact point as midpoint between closest surfaces.
+    // Approximate contact point as midpoint between the two atoms.
     const contactPoint = obbA.center.clone()
       .add(obbB.center)
       .multiplyScalar(0.5);
 
-    // const isMatchingFaces = areMatchingFacesColliding(atomA, atomB, collisionNormal);
-    const verticesA = getWorldSpaceVertices(atomA);
-    const verticesB = getWorldSpaceVertices(atomB);
-    interface vertexPair {
-      indexA: number,
-      indexB: number,
-      distance: number
-    }
-    const vertexDistances: vertexPair[] = [];
-    verticesA.forEach((vertA) => {
-      verticesB.forEach((vertB) => {
-        const d = vertA.position.distanceTo(vertB.position);
-        vertexDistances.push({
-          indexA: vertA.index,
-          indexB: vertB.index,
-          distance: d,
-        })
-      });
-    });
-    vertexDistances.sort((a, b) => a.distance - b.distance);
-    // Big assumption time: if the three closest vertices share a face, then the faces are colliding.
-    const sharedFaces = [];
-    for (let i = 0; i < 3; i++) {
-      sharedFaces.push(vertexIndexToFaces(vertexDistances[i].indexA).filter(
-        element => vertexIndexToFaces(vertexDistances[i].indexB).includes(element)));
-    }
-    const sharedFace = sharedFaces[0].filter(e => sharedFaces.slice(1).every(sublist => sublist.includes(e)) );
-    const isMatchingFaces = sharedFace.length > 0;
 
-    const distance = new Vector3().subVectors(atomA.position, atomB.position).length();
+    const isMatchingFaces = areMatchingFacesColliding(atomA, atomB);
 
     return {
       atomA,
@@ -326,25 +235,26 @@ class SATCollisionDetector {
       contactNormal: collisionNormal,
       penetrationDepth: minOverlap,
       isMatchingFaces: isMatchingFaces,
-      distance: distance,
     };
   }
 
   // Modify the velocity and rotation of colliding atoms.
   // https://www.cs.ubc.ca/~rhodin/2020_2021_CPSC_427/lectures/D_CollisionTutorial.pdf
   // https://en.wikipedia.org/wiki/Collision_response#Impulse-based_contact_model
+  // TODO: This really doesn't handle moledcules properly.
   private static resolveCollision(collision: CollisionInfo): void {
     const {atomA, atomB, contactPoint, contactNormal, penetrationDepth} = collision;
 
-    // Get individual masses
     const objA = atomA.is_in_molecule ? atomA.molecule : atomA;
     const objB = atomB.is_in_molecule ? atomB.molecule : atomB;
 
-    const massA = objA.getMass(); // fallback to default if mass not set
+    // Get individual masses
+    const massA = objA.getMass();
     const massB = objB.getMass();
 
     // Separate objects to prevent overlap.
     const totalMass = massA + massB;
+    // Push back heavier objects less.
     const separationA = contactNormal.clone().multiplyScalar(penetrationDepth * massB / totalMass);
     const separationB = contactNormal.clone().multiplyScalar(penetrationDepth * massA / totalMass);
     objA.position.sub(separationA);
@@ -366,7 +276,7 @@ class SATCollisionDetector {
     // Velocity component along collision normal
     const normalVelocity = relativeVelocity.dot(contactNormal);
 
-    // Don't resolve if objects are separating
+    // If objects are moving apart from each other, skip it.
     if (normalVelocity < 0) return;
 
     // Collision moment arms.
@@ -375,6 +285,7 @@ class SATCollisionDetector {
 
     // Calculate moments of inertia based on individual masses and sizes
     // Assuming solid sphere: I = (2/5) * m * r²
+    // This greatly overestimates the moment inertia of some molecules.
     const radiusA = objA.getSize() / 2;
     const radiusB = objB.getSize() / 2;
     const momentA = (2 / 5) * massA * Math.pow(radiusA, 2);
@@ -399,26 +310,24 @@ class SATCollisionDetector {
     function lerp(a: number, b: number, t: number) {
       return a + t * (b - a);
     }
-    // Molecule rotation is just too volatile given all my simplifications, gonna skip it.
-    // I shouldn't HAVE to rebuild the pivot system here, alas...
+
+    // I'm intentionally slowing down rotational momentum transfer from atoms to molecules here to keep things stable.
+    // Update rotation axis and speed for A
     if (!(objA instanceof Molecule)) {
       objA.rotation_speed = newAngularVelA.length();
       objA.rotation_axis = newAngularVelA.normalize();
-      // Update rotation axis and speed for A
     } else {
-      objA.rotation_speed = lerp(objA.rotation_speed, newAngularVelA.length(), massB / (totalMass));
-      objA.rotation_axis.lerp(newAngularVelA.normalize(), massB / totalMass).normalize();
-      // objA.rebuildPivot();
+      objB.rotation_axis.lerp(newAngularVelA.normalize(), massA / totalMass * Molecule.lerp_amt).normalize();
+      objA.rotation_speed = lerp(objA.rotation_speed, newAngularVelA.length(), massB / totalMass * Molecule.lerp_amt);
     }
 
+    // Update rotation axis and speed for B
     if (!(objB instanceof Molecule)) {
       objB.rotation_speed = newAngularVelB.length();
       objB.rotation_axis = newAngularVelB.normalize();
-      // Update rotation axis and speed for B
     } else {
-      objB.rotation_speed = lerp(objB.rotation_speed, newAngularVelA.length(), massA / (totalMass));
-      objB.rotation_axis.lerp(newAngularVelA.normalize(), massA / totalMass).normalize();
-      // objB.rebuildPivot();
+      objB.rotation_axis.lerp(newAngularVelB.normalize(), massA / totalMass * Molecule.lerp_amt).normalize();
+      objB.rotation_speed = lerp(objB.rotation_speed, newAngularVelA.length(), massA / totalMass * Molecule.lerp_amt);
     }
   }
 
@@ -427,8 +336,6 @@ class SATCollisionDetector {
 
     if(collisionInfo) {
       this.resolveCollision(collisionInfo);
-      // if (!collisionInfo.isMatchingFaces) {
-      // }
       return {
         isColliding: true,
         isSticking: (collisionInfo.isMatchingFaces && Config.form_molecules)
@@ -451,7 +358,6 @@ export default class CollisionDetector extends SweepAndPrune {
     // Then, filter using SAT for precise collision detection (narrow phase)
     // Though it feels poorly structured. This is an easy time to actually update the velocities and rotations of the
     // cubes.
-    // TODO: don't break law of demeter
     const preciseCollisions: Collision[] = [];
     for (const [atomA, atomB] of broadPhaseCollisions) {
       const {isColliding, isSticking} = SATCollisionDetector.testAndResolveCollision(atomA, atomB);

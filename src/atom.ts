@@ -15,18 +15,15 @@ export default class Atom extends Mesh {
   public rotation_speed: number;
   public velocity: Vector3;
   public last_collision: number = Infinity;
-
-  private _boundingBox: Box3 = new Box3();
-  private _boundingBoxDirty: boolean = true;
-
   public molecule_id: number = -1;
   public is_in_molecule: boolean = false;
   public molecule: Molecule;
 
-  constructor(key: number, material: Material) {
-    const geometry = new BoxBufferGeometry(Config.atom_size, Config.atom_size, Config.atom_size);
+  private _boundingBox: Box3 = new Box3();
+  private _boundingBoxDirty: boolean = true;
 
-    super(geometry, material);
+  constructor(key: number, material: Material) {
+    super(new BoxBufferGeometry(Config.atom_size, Config.atom_size, Config.atom_size), material);
     this.key = key;
 
     function randomVector3() {
@@ -36,7 +33,7 @@ export default class Atom extends Mesh {
     this.rotation_axis = randomVector3().normalize();
     this.rotation_speed = Math.random() / 10;
 
-    this.velocity = randomVector3().normalize().multiplyScalar(Config.velocity_multiplier);
+    this.velocity = randomVector3().normalize().multiplyScalar(Math.random());
 
     this.position.copy(randomVector3().multiplyScalar(Config.simulation_size - 1));
 
@@ -44,7 +41,9 @@ export default class Atom extends Mesh {
   }
 
   public setMolecule(mol: Molecule) {
+    this.molecule_id = mol.id;
     this.molecule = mol;
+    this.is_in_molecule = true;
   }
 
   public getMass(): number {

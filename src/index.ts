@@ -1,4 +1,3 @@
-// index.ts - Updated with dat.gui integration
 import Stats from "stats.js";
 import {
   AmbientLight,
@@ -27,38 +26,33 @@ import Molecule from "./molecule";
 
 class Main {
   /** The scene */
-  private scene: Scene;
+  private _scene: Scene;
+  private _camera: PerspectiveCamera | OrthographicCamera;
+  private _renderer: WebGLRenderer;
+  private _controls: OrbitControls;
+  private _stats: Stats;
 
-  /** The camera */
-  private camera: PerspectiveCamera | OrthographicCamera;
-
-  /** The renderer */
-  private renderer: WebGLRenderer;
-
-  /** The orbit controls */
-  private controls: OrbitControls;
-
-  /** The stats */
-  private stats: Stats;
-
-  private atoms: Atom[];
-  private molecules: {[key: number]: Molecule};
+  /** The objects that actually move around and interact
+   * TODO: They should all be molecules
+   */
+  public atoms: Atom[];
+  public molecules: {[key: number]: Molecule};
 
   /** The boundaries of the simulation */
-  private bounds: Mesh;
+  private _bounds: LineSegments;
 
   /** some materials for the cubes */
-  private notCollidingMaterial: any;
-  private standardMaterials: MeshStandardMaterial[];
+  private _notCollidingMaterial: any;
+  private _standardMaterials: MeshStandardMaterial[];
 
   /** The collision detector */
-  private collisionDetector: CollisionDetector;
+  private _collisionDetector: CollisionDetector;
 
   /** Animation state */
-  private isAnimating: boolean = true;
-  private lastTime: number = 0;
-  private frameCount: number = 0;
-  private fps: number = 60;
+  private _isAnimating: boolean = true;
+  private _lastTime: number = 0;
+  private _frameCount: number = 0;
+  private _fps: number = 60;
 
   constructor() {
     this.initViewport();
@@ -67,8 +61,8 @@ class Main {
 
   private setupGUICallbacks(): void {
     configManager.setCallbacks({
-      onResetRequired: () => {
-        this.resetSimulation();
+      onResetRequired: (property?: string, value?: any) => {
+        this.resetSimulation(property, value);
       },
       onRealTimeUpdate: (property: string, value: any) => {
         this.handleRealTimeUpdate(property, value);
@@ -78,39 +72,30 @@ class Main {
 
   private handleRealTimeUpdate(property: string, value: any): void {
     switch (property) {
-      case 'velocity_multiplier':
-        // Update existing atom velocities
-        this.atoms.forEach(atom => {
-          if (atom.velocity.length() > 0) {
-            atom.velocity.normalize().multiplyScalar(value);
-          }
-        });
-        break;
-
       case 'use_normal_material':
         this.updateMaterials();
         this.atoms.forEach(atom => {
           if (atom.last_collision > 40) {
-            atom.material = this.notCollidingMaterial;
+            atom.material = this._notCollidingMaterial;
           }
         });
         break;
 
       case 'pauseSimulation':
-        this.isAnimating = !value;
+        this._isAnimating = !value;
         break;
 
       case 'atom_mass':
-        // This affects collision calculations but doesn't require reset
-        break;
-
       case 'restitution_coefficient':
-        // This affects collision calculations but doesn't require reset
+        // These two are handled in the collider.
         break;
     }
   }
 
-  private resetSimulation(): void {
+  private resetSimulation(property?: string, value?: any): void {
+    if (property && property === "scenario") {
+      configManager.loadPreset(value);
+    }
     // Clear existing objects
     this.clearSimulation();
 
@@ -118,13 +103,13 @@ class Main {
     this.updateMaterials();
     this.createScenario();
 
-    this.collisionDetector = new CollisionDetector(this.atoms, Object.values(this.molecules));
+    this._collisionDetector = new CollisionDetector(this.atoms, Object.values(this.molecules));
 
 
     // Update bounds
-    this.scene.remove(this.bounds);
-    this.bounds = this.createBoundaryMesh();
-    this.scene.add(this.bounds);
+    this._scene.remove(this._bounds);
+    this._bounds = this.createBoundaryMesh();
+    this._scene.add(this._bounds);
 
     this.render();
   }
@@ -132,7 +117,7 @@ class Main {
   private clearSimulation(): void {
     // Remove all atoms
     this.atoms.forEach(atom => {
-      this.scene.remove(atom);
+      this._scene.remove(atom);
       atom.geometry.dispose();
       if (Array.isArray(atom.material)) {
         atom.material.forEach(mat => mat.dispose());
@@ -143,13 +128,13 @@ class Main {
 
     // Remove all molecules
     Object.values(this.molecules).forEach(molecule => {
-      this.scene.remove(molecule.pivotGroup);
+      this._scene.remove(molecule.pivotGroup);
       // Molecules contain atoms, so we don't need to dispose their geometry/materials separately
     });
 
-    for (const child of this.scene.children) {
+    for (const child of this._scene.children) {
       if (child instanceof Mesh) {
-        this.scene.remove(child);
+        this._scene.remove(child);
       }
     }
 
@@ -159,14 +144,14 @@ class Main {
 
   private updateMaterials(): void {
     if (Config.use_normal_material) {
-      this.notCollidingMaterial = new MeshNormalMaterial();
+      this._notCollidingMaterial = new MeshNormalMaterial();
     } else {
       // Dispose old materials if they exist
-      if (this.standardMaterials) {
-        this.standardMaterials.forEach(mat => mat.dispose());
+      if (this._standardMaterials) {
+        this._standardMaterials.forEach(mat => mat.dispose());
       }
 
-      this.standardMaterials = [
+      this._standardMaterials = [
         new MeshStandardMaterial({color: 0xff0000}), // Red: Right face
         new MeshStandardMaterial({color: 0x00ff00}), // Green: Left face
         new MeshStandardMaterial({color: 0x0000ff}), // Blue: Top face
@@ -174,72 +159,71 @@ class Main {
         new MeshStandardMaterial({color: 0xff00ff}), // Magenta: Front face
         new MeshStandardMaterial({color: 0x00ffff})  // Cyan: Back face
       ];
-      this.notCollidingMaterial = this.standardMaterials;
+      this._notCollidingMaterial = this._standardMaterials;
     }
   }
 
   /** Initialize the viewport */
   public initViewport() {
     // Init scene.
-    this.scene = new Scene();
-    this.scene.background = new Color("#191919");
+    this._scene = new Scene();
+    this._scene.background = new Color("#191919");
 
     // Init camera.
     const aspect = window.innerWidth / window.innerHeight;
-    this.camera = new PerspectiveCamera(50, aspect, 1, 5000);
-    this.camera.position.z = 200;
+    this._camera = new PerspectiveCamera(50, aspect, 1, 5000);
+    this._camera.position.z = 200;
 
     // Init renderer.
-    this.renderer = new WebGLRenderer({
+    this._renderer = new WebGLRenderer({
       powerPreference: "high-performance",
       antialias: true
     });
-    this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.render(this.scene, this.camera);
-    this.renderer.setAnimationLoop((time) => this.animate(time));
-    document.body.appendChild(this.renderer.domElement);
+    this._renderer.setPixelRatio(window.devicePixelRatio);
+    this._renderer.setSize(window.innerWidth, window.innerHeight);
+    this._renderer.render(this._scene, this._camera);
+    this._renderer.setAnimationLoop((time: number) => this.animate(time));
+    document.body.appendChild(this._renderer.domElement);
     window.addEventListener("resize", () => this.onResize());
 
     // Init stats.
-    this.stats = new Stats();
-    document.body.appendChild(this.stats.dom);
+    this._stats = new Stats();
+    document.body.appendChild(this._stats.dom);
 
     // Init orbit controls.
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.update();
-    this.controls.addEventListener("change", () => this.render());
+    this._controls = new OrbitControls(this._camera, this._renderer.domElement);
+    this._controls.update();
+    this._controls.addEventListener("change", () => this.render());
 
     // Add the boundaries
-    this.bounds = this.createBoundaryMesh();
-    this.scene.add(this.bounds);
+    this._bounds = this.createBoundaryMesh();
+    this._scene.add(this._bounds);
 
     this.updateMaterials();
 
     // Add lights to the scene (needed for MeshStandardMaterial)
     const ambientLight = new AmbientLight(0xffffff, 0.6);
-    this.scene.add(ambientLight);
+    this._scene.add(ambientLight);
 
     // Add atoms.
     this.atoms = [];
     this.molecules = {};
     this.createScenario();
-    this.collisionDetector = new CollisionDetector(this.atoms, Object.values(this.molecules));
+    this._collisionDetector = new CollisionDetector(this.atoms, Object.values(this.molecules));
     this.render();
   }
 
   private createAtoms(num: number) {
     for (let i = 0; i < num; i++) {
-      this.atoms.push(new Atom(i, this.notCollidingMaterial));
-      this.scene.add(this.atoms[i]);
+      this.atoms.push(new Atom(i, this._notCollidingMaterial));
+      this._scene.add(this.atoms[i]);
     }
   }
 
   private createScenario() {
     if (Config.scenario === 'collision' || Config.scenario === 'angled_collision') {
       // A simple tests of two large boxes colliding.
-      this.createAtoms(2);
-
+      this.createAtoms(Config.number_of_atoms);
       this.atoms.forEach(atom => {
         atom.velocity.multiplyScalar(0);
         atom.position.multiplyScalar(0);
@@ -285,7 +269,7 @@ class Main {
         }
       });
 
-      this.atoms[0].velocity.x = 0.1;
+      this.atoms[0].velocity.x = 0.4;
     } else if (Config.scenario == 'lattice') {
       // One atom bouncing around a lattice.
       const grid_size = Math.ceil(Math.pow(Config.number_of_atoms, 1 / 3));
@@ -320,28 +304,28 @@ class Main {
 
   /** Renders the scene */
   public render() {
-    this.stats.begin();
-    this.renderer.render(this.scene, this.camera);
-    this.stats.end();
+    this._stats.begin();
+    this._renderer.render(this._scene, this._camera);
+    this._stats.end();
   }
 
   /** Animates the scene */
   public animate(time: number) {
-    this.stats.begin();
+    this._stats.begin();
 
     // Calculate FPS
-    if (time - this.lastTime >= 1000) {
-      this.fps = this.frameCount;
-      this.frameCount = 0;
-      this.lastTime = time;
+    if (time - this._lastTime >= 1000) {
+      this._fps = this._frameCount;
+      this._frameCount = 0;
+      this._lastTime = time;
     }
-    this.frameCount++;
+    this._frameCount++;
 
     // Update GUI info
-    configManager.updateInfo(this.fps, this.atoms.length, Object.keys(this.molecules).length);
+    configManager.updateInfo(this._fps, this.atoms.length, Object.keys(this.molecules).length);
 
     // Only update simulation if not paused
-    if (this.isAnimating) {
+    if (this._isAnimating) {
       for (const atom of this.atoms) {
         atom.update();
       }
@@ -350,79 +334,73 @@ class Main {
       }
 
       // Collisions
-      const collisions: Collision[] = this.collisionDetector.detectCollisions();
+      const collisions: Collision[] = this._collisionDetector.detectCollisions();
       const collidingAtomKeys = new Set<number>();
 
       for (const collision of collisions) {
         collidingAtomKeys.add(collision.pair[0].key);
         collidingAtomKeys.add(collision.pair[1].key);
+        const atom1 = collision.pair[0];
+        const atom2 = collision.pair[1];
+        if (collision.isSticking) { // Sticky collision
+          // TODO: This could be made a lot cleaner if all atoms were just molecules of length 1.
+          if (!atom2.is_in_molecule && !atom1.is_in_molecule) {
+            const mol = new Molecule(atom1, atom2, this._scene);
+            this._scene.add(mol.pivotGroup);
+            this.molecules[mol.id] = mol;
+          } else if (atom1.is_in_molecule && !atom2.is_in_molecule) {
+            const mol = atom1.molecule;
+            mol.addAtom(atom2);
+          } else if (atom2.is_in_molecule && !atom1.is_in_molecule) {
+            const mol = atom2.molecule;
+            mol.addAtom(atom1);
+          } else if (atom2.is_in_molecule && atom1.is_in_molecule) {
+            const mol1 = atom1.molecule;
+            const mol2 = atom2.molecule;
+
+            if (mol1 && mol2) {
+              if (mol1.getMass() > mol2.getMass()) {
+                mol1.addMolecule(mol2);
+                this._scene.remove(mol2);
+              } else {
+                mol2.addMolecule(mol1);
+                this._scene.remove(mol1);
+              }
+            }
+          }
+        }
+
+        atom1.last_collision = 0;
+        atom2.last_collision = 0;
       }
 
+      // Highlight colliding atoms.
       for (const atom of this.atoms) {
-        if (collidingAtomKeys.has(atom.key) && atom.velocity.length() > 0) {
-          atom.last_collision = 0;
-        }
         if (atom.last_collision < 40) {
           const material = new MeshBasicMaterial();
           const bright = ((40 - atom.last_collision) / (40 * 4)) + 0.75;
           material.color.set(new Color(bright, bright, bright))
           atom.material = material;
         } else {
-          atom.material = this.notCollidingMaterial;
+          atom.material = this._notCollidingMaterial;
         }
         atom.last_collision += 1;
       }
-
-      for (const collision of collisions) {
-        const atom1 = collision.pair[0];
-        const atom2 = collision.pair[1];
-        if (collision.isSticking) { // Sticky collision
-          atom1.material = new MeshBasicMaterial({color: 0xff00ff});
-          atom2.material = new MeshBasicMaterial({color: 0xff00ff});
-          if (!atom2.is_in_molecule && !atom1.is_in_molecule) {
-            const mol = new Molecule(atom1, atom2, this.scene);
-            atom1.molecule_id = mol.id;
-            atom2.molecule_id = mol.id;
-            atom1.is_in_molecule = true;
-            atom2.is_in_molecule = true;
-            this.scene.add(mol.pivotGroup);
-            this.molecules[mol.id] = mol;
-          } else if (atom1.is_in_molecule && !atom2.is_in_molecule) {
-            const mol = atom1.molecule;
-            mol.addAtom(atom2);
-            atom2.molecule_id = mol.id;
-            atom2.is_in_molecule = true;
-          } else if (atom2.is_in_molecule && !atom1.is_in_molecule) {
-            const mol = atom2.molecule;
-            mol.addAtom(atom1);
-            atom1.molecule_id = mol.id;
-            atom1.is_in_molecule = true;
-          } else if (atom2.is_in_molecule && atom1.is_in_molecule) {
-            const mol = atom1.molecule;
-            const mol2 = atom2.molecule;
-
-            if (mol && mol2) {
-              mol.addMolecule(mol2);
-              delete this.molecules[mol2.id];
-            }
-          }
-        }
-      }
     }
 
-    this.controls.update();
-    this.renderer.render(this.scene, this.camera);
+    this._controls.update();
+    this._renderer.render(this._scene, this._camera);
 
-    this.stats.end();
+    this._stats.end();
   }
 
   /** On resize event */
   public onResize() {
-    if (this.camera instanceof PerspectiveCamera) {
-      this.camera.aspect = window.innerWidth / window.innerHeight;
-      this.camera.updateProjectionMatrix();
+    if (this._camera instanceof PerspectiveCamera) {
+      this._camera.aspect = window.innerWidth / window.innerHeight;
+      this._camera.updateProjectionMatrix();
     }
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this._renderer.setSize(window.innerWidth, window.innerHeight);
     this.render();
   }
 
@@ -441,8 +419,8 @@ class Main {
   public destroy(): void {
     configManager.destroy();
     this.clearSimulation();
-    if (this.renderer) {
-      this.renderer.dispose();
+    if (this._renderer) {
+      this._renderer.dispose();
     }
   }
 }
