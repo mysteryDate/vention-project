@@ -36386,7 +36386,6 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.configManager = void 0;
-// config.ts - Enhanced version with dat.gui integration
 var dat = __importStar(require("dat.gui"));
 var DEFAULT_SCENARIO = "lattice";
 var ConfigManager = /*#__PURE__*/function () {
@@ -36396,7 +36395,7 @@ var ConfigManager = /*#__PURE__*/function () {
     // Properties that require simulation reset when changed
     this.RESET_REQUIRED_PROPS = new Set(['simulation_size', 'atom_size', 'number_of_atoms', 'scenario']);
     // Properties that can be updated in real-time
-    this.REALTIME_PROPS = new Set(['atom_mass', 'restitution_coefficient', 'use_normal_material', 'pauseSimulation', 'speed_up', 'slow_down']);
+    this.REALTIME_PROPS = new Set(['atom_mass', 'restitution_coefficient', 'use_normal_material', 'pauseSimulation', 'speed_up', 'slow_down', 'show_bounds', 'show_normals']);
     // Scenario options for dropdown
     this.SCENARIO_OPTIONS = {
       'Random Gas': 'random',
@@ -36414,7 +36413,9 @@ var ConfigManager = /*#__PURE__*/function () {
       scenario: "cradle",
       use_normal_material: false,
       form_molecules: true,
-      pauseSimulation: false
+      pauseSimulation: false,
+      show_bounds: false,
+      show_normals: true
     };
     this.initializeGUI();
   }
@@ -36437,6 +36438,12 @@ var ConfigManager = /*#__PURE__*/function () {
       });
       simulationFolder.add(this.config, 'pauseSimulation').name('Pause').onChange(function () {
         return _this.handlePropertyChange('pauseSimulation');
+      });
+      simulationFolder.add(this.config, 'show_bounds').name('Show Bounds').onChange(function () {
+        return _this.handlePropertyChange('show_bounds');
+      });
+      simulationFolder.add(this.config, 'show_normals').name('Show Normals').onChange(function () {
+        return _this.handlePropertyChange('show_normals');
       });
       this.config.speedUp = function () {
         if (_this.callbacks.onRealTimeUpdate) {
@@ -36475,7 +36482,7 @@ var ConfigManager = /*#__PURE__*/function () {
       physicsFolder.add(this.config, 'form_molecules').name('Form Molecules').onChange(function () {
         return _this.handlePropertyChange('form_molecules');
       });
-      physicsFolder.add(this.config, 'restitution_coefficient', 0, 2).name('Restitution').onChange(function () {
+      physicsFolder.add(this.config, 'restitution_coefficient', 0, 2, 0.01).name('Restitution').onChange(function () {
         return _this.handlePropertyChange('restitution_coefficient');
       });
       physicsFolder.open();
@@ -36550,10 +36557,10 @@ var ConfigManager = /*#__PURE__*/function () {
         case 'cradle':
           Object.assign(this.config, {
             scenario: 'cradle',
-            number_of_atoms: 3,
-            atom_size: 15,
-            form_molecules: true,
-            restitution_coefficient: 0.7
+            number_of_atoms: 8,
+            atom_size: 10,
+            form_molecules: false,
+            restitution_coefficient: 0.99
           });
           break;
         case 'lattice':
@@ -36621,10 +36628,10 @@ Object.defineProperty(exports, "__esModule", {
 var three_1 = require("three");
 var config_1 = __importDefault(require("./config"));
 var Atom = /*#__PURE__*/function (_three_1$Mesh) {
-  function Atom(key, material) {
+  function Atom(key, geometry, material) {
     var _this;
     _classCallCheck(this, Atom);
-    _this = _callSuper(this, Atom, [new three_1.BoxBufferGeometry(config_1.default.atom_size, config_1.default.atom_size, config_1.default.atom_size), material]);
+    _this = _callSuper(this, Atom, [geometry, material]);
     _this.last_collision = Infinity;
     _this.molecule_id = -1;
     _this.is_in_molecule = false;
@@ -37667,6 +37674,23 @@ var Main = /*#__PURE__*/function () {
             _molecule.rotation_speed *= 1 - speedChangeAmt;
           }
           break;
+        case 'show_bounds':
+          this._bounds.visible = config_1.default.show_bounds;
+          break;
+        case 'show_normals':
+          var _iterator3 = _createForOfIteratorHelper(this.atomNormals),
+            _step3;
+          try {
+            for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+              var normal = _step3.value;
+              normal.visible = config_1.default.show_normals;
+            }
+          } catch (err) {
+            _iterator3.e(err);
+          } finally {
+            _iterator3.f();
+          }
+          break;
         case 'atom_mass':
         case 'restitution_coefficient':
           // These two are handled in the collider.
@@ -37707,27 +37731,18 @@ var Main = /*#__PURE__*/function () {
           atom.material.dispose();
         }
       });
+      this.atomNormals.forEach(function (atomNormal) {
+        _this3._scene.remove(atomNormal);
+        atomNormal.geometry.dispose();
+      });
       // Remove all molecules
       Object.values(this.molecules).forEach(function (molecule) {
         _this3._scene.remove(molecule.pivotGroup);
         // Molecules contain atoms, so we don't need to dispose their geometry/materials separately
       });
-      var _iterator3 = _createForOfIteratorHelper(this._scene.children),
-        _step3;
-      try {
-        for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
-          var child = _step3.value;
-          if (child instanceof three_1.Mesh) {
-            this._scene.remove(child);
-          }
-        }
-      } catch (err) {
-        _iterator3.e(err);
-      } finally {
-        _iterator3.f();
-      }
       this.atoms = [];
       this.molecules = {};
+      this.atomNormals = [];
     }
   }, {
     key: "updateMaterials",
@@ -37807,12 +37822,14 @@ var Main = /*#__PURE__*/function () {
       // Add the boundaries
       this._bounds = this.createBoundaryMesh();
       this._scene.add(this._bounds);
+      this._bounds.visible = config_1.default.show_bounds;
       this.updateMaterials();
       // Add lights to the scene (needed for MeshStandardMaterial)
       var ambientLight = new three_1.AmbientLight(0xffffff, 0.6);
       this._scene.add(ambientLight);
       // Add atoms.
       this.atoms = [];
+      this.atomNormals = [];
       this.molecules = {};
       this.createScenario();
       this._collisionDetector = new collision_detector_1.default(this.atoms, Object.values(this.molecules));
@@ -37821,9 +37838,96 @@ var Main = /*#__PURE__*/function () {
   }, {
     key: "createAtoms",
     value: function createAtoms(num) {
+      function getArrowGeometry(geometry) {
+        var size = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 1;
+        var arrowSize = 0.1;
+        var normals = [];
+        var colors = [];
+        var positions = geometry.attributes.position.array;
+        for (var i = 0; i < positions.length; i += 12) {
+          // 12 values per face (4 vertices * 3 coords)
+          var faceNormal = new three_1.Vector3().fromArray(positions, i + 9).sub(new three_1.Vector3().fromArray(positions, i)).cross(new three_1.Vector3().fromArray(positions, i + 6).sub(new three_1.Vector3().fromArray(positions, i)));
+          faceNormal.normalize();
+          var center = new three_1.Vector3();
+          center.x = (positions[i] + positions[i + 3] + positions[i + 6] + positions[i + 9]) / 4;
+          center.y = (positions[i + 1] + positions[i + 4] + positions[i + 7] + positions[i + 10]) / 4;
+          center.z = (positions[i + 2] + positions[i + 5] + positions[i + 8] + positions[i + 11]) / 4;
+          var faceNum = Math.floor(i / 12); // right, left, bottom, top, front, back
+          var d1 = new three_1.Vector3();
+          var d2 = new three_1.Vector3();
+          var color = new three_1.Vector3();
+          switch (faceNum) {
+            case 0:
+              // Right
+              d1.set(1, 0, 1);
+              d2.set(1, 0, -1);
+              color.set(0, 1, 0); // Green
+              break;
+            case 1:
+              // Left
+              d1.set(-1, 0, 1);
+              d2.set(-1, 0, -1);
+              color.set(1, 0, 0); // Red
+              break;
+            case 2:
+              // Bottom
+              d1.set(0, 1, 1);
+              d2.set(0, 1, -1);
+              color.set(1, 1, 0); // Yellow
+              break;
+            case 3:
+              // Top
+              d1.set(0, -1, 1);
+              d2.set(0, -1, -1);
+              color.set(0, 0, 1); // Blue
+              break;
+            case 4:
+              // Front
+              d1.set(1, 0, 1);
+              d2.set(-1, 0, 1);
+              color.set(0, 1, 1); // Cyan
+              break;
+            case 5:
+              // Back
+              d1.set(1, 0, -1);
+              d2.set(-1, 0, -1);
+              color.set(1, 0, 1); // Cyan
+              break;
+          }
+          normals.push(center.x, center.y, center.z);
+          colors.push(color.x, color.y, color.z);
+          var point = new three_1.Vector3(center.x + faceNormal.x * size, center.y + faceNormal.y * size, center.z + faceNormal.z * size);
+          normals.push(point.x, point.y, point.z);
+          colors.push(color.x, color.y, color.z);
+          normals.push(point.x, point.y, point.z);
+          colors.push(color.x, color.y, color.z);
+          var left_arrow_point = d1.multiplyScalar(size * arrowSize).add(point);
+          normals.push(left_arrow_point.x, left_arrow_point.y, left_arrow_point.z);
+          colors.push(color.x, color.y, color.z);
+          var right_arrow_point = d2.multiplyScalar(size * arrowSize).add(point);
+          normals.push(right_arrow_point.x, right_arrow_point.y, right_arrow_point.z);
+          colors.push(color.x, color.y, color.z);
+          normals.push(point.x, point.y, point.z);
+          colors.push(color.x, color.y, color.z);
+        }
+        var normalsGeometry = new three_1.BufferGeometry();
+        normalsGeometry.setAttribute('position', new three_1.Float32BufferAttribute(normals, 3));
+        normalsGeometry.setAttribute('color', new three_1.Float32BufferAttribute(colors, 3));
+        return normalsGeometry;
+      }
+      var geometry = new three_1.BoxBufferGeometry(config_1.default.atom_size, config_1.default.atom_size, config_1.default.atom_size);
+      var arrowGeometry = getArrowGeometry(geometry, config_1.default.atom_size * 1.3);
+      // TODO: arrows should just be children of atoms
+      var normalsMaterials = new three_1.LineBasicMaterial({
+        vertexColors: three_1.VertexColors
+      });
       for (var i = 0; i < num; i++) {
-        this.atoms.push(new atom_1.default(i, this._notCollidingMaterial));
+        var normalsLines = new three_1.LineSegments(arrowGeometry, normalsMaterials);
+        this.atoms.push(new atom_1.default(i, geometry, this._notCollidingMaterial));
         this._scene.add(this.atoms[i]);
+        this.atomNormals.push(normalsLines);
+        this._scene.add(normalsLines);
+        normalsLines.visible = config_1.default.show_normals;
       }
     }
   }, {
@@ -37922,17 +38026,11 @@ var Main = /*#__PURE__*/function () {
       config_1.configManager.updateInfo(this._fps, this.atoms.length, Object.keys(this.molecules).length);
       // Only update simulation if not paused
       if (this._isAnimating) {
-        var _iterator4 = _createForOfIteratorHelper(this.atoms),
-          _step4;
-        try {
-          for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
-            var atom = _step4.value;
-            atom.update();
-          }
-        } catch (err) {
-          _iterator4.e(err);
-        } finally {
-          _iterator4.f();
+        for (var index = 0; index < this.atoms.length; index++) {
+          this.atoms[index].update();
+          // TODO: Again, the normals should just be children of the atoms to save this calc.
+          this.atoms[index].getWorldPosition(this.atomNormals[index].position);
+          this.atomNormals[index].quaternion.copy(this.atoms[index].quaternion);
         }
         for (var _i3 = 0, _Object$values3 = Object.values(this.molecules); _i3 < _Object$values3.length; _i3++) {
           var molecule = _Object$values3[_i3];
@@ -37941,11 +38039,11 @@ var Main = /*#__PURE__*/function () {
         // Collisions
         var collisions = this._collisionDetector.detectCollisions();
         var collidingAtomKeys = new Set();
-        var _iterator5 = _createForOfIteratorHelper(collisions),
-          _step5;
+        var _iterator4 = _createForOfIteratorHelper(collisions),
+          _step4;
         try {
-          for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
-            var collision = _step5.value;
+          for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+            var collision = _step4.value;
             collidingAtomKeys.add(collision.pair[0].key);
             collidingAtomKeys.add(collision.pair[1].key);
             var atom1 = collision.pair[0];
@@ -37982,29 +38080,29 @@ var Main = /*#__PURE__*/function () {
           }
           // Highlight colliding atoms.
         } catch (err) {
+          _iterator4.e(err);
+        } finally {
+          _iterator4.f();
+        }
+        var _iterator5 = _createForOfIteratorHelper(this.atoms),
+          _step5;
+        try {
+          for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+            var atom = _step5.value;
+            if (atom.last_collision < 40) {
+              var material = new three_1.MeshBasicMaterial();
+              var bright = (40 - atom.last_collision) / (40 * 4) + 0.75;
+              material.color.set(new three_1.Color(bright, bright, bright));
+              atom.material = material;
+            } else {
+              atom.material = this._notCollidingMaterial;
+            }
+            atom.last_collision += 1;
+          }
+        } catch (err) {
           _iterator5.e(err);
         } finally {
           _iterator5.f();
-        }
-        var _iterator6 = _createForOfIteratorHelper(this.atoms),
-          _step6;
-        try {
-          for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
-            var _atom2 = _step6.value;
-            if (_atom2.last_collision < 40) {
-              var material = new three_1.MeshBasicMaterial();
-              var bright = (40 - _atom2.last_collision) / (40 * 4) + 0.75;
-              material.color.set(new three_1.Color(bright, bright, bright));
-              _atom2.material = material;
-            } else {
-              _atom2.material = this._notCollidingMaterial;
-            }
-            _atom2.last_collision += 1;
-          }
-        } catch (err) {
-          _iterator6.e(err);
-        } finally {
-          _iterator6.f();
         }
       }
       this._controls.update();
@@ -38028,7 +38126,7 @@ var Main = /*#__PURE__*/function () {
       var geometry = new three_1.BoxBufferGeometry(config_1.default.simulation_size, config_1.default.simulation_size, config_1.default.simulation_size);
       var edges = new three_1.EdgesGeometry(geometry);
       var lineMaterial = new three_1.LineBasicMaterial({
-        color: 0x00ff00,
+        color: 0xf0f0f0,
         linewidth: 1
       });
       return new three_1.LineSegments(edges, lineMaterial);
@@ -38075,7 +38173,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "55836" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "49193" + '/');
   ws.onmessage = function (event) {
     checkedAssets = {};
     assetsToAccept = [];
