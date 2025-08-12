@@ -1,4 +1,3 @@
-// config.ts - Enhanced version with dat.gui integration
 import * as dat from 'dat.gui';
 const DEFAULT_SCENARIO = "lattice";
 
@@ -13,6 +12,8 @@ export interface ConfigInterface {
   form_molecules: boolean;
   speedUp?: () => void;
   slowDown?: () => void;
+  show_bounds: boolean;
+  show_normals: boolean;
 
   // GUI control methods
   resetSimulation?: () => void;
@@ -43,6 +44,8 @@ class ConfigManager {
     'pauseSimulation',
     'speed_up',
     'slow_down',
+    'show_bounds',
+    'show_normals',
   ]);
 
   // Scenario options for dropdown
@@ -64,7 +67,9 @@ class ConfigManager {
       scenario: "cradle",
       use_normal_material: false,
       form_molecules: true,
-      pauseSimulation: false
+      pauseSimulation: false,
+      show_bounds: false,
+      show_normals: true
     };
 
     this.initializeGUI();
@@ -90,6 +95,14 @@ class ConfigManager {
     simulationFolder.add(this.config, 'pauseSimulation')
       .name('Pause')
       .onChange(() => this.handlePropertyChange('pauseSimulation'));
+
+    simulationFolder.add(this.config, 'show_bounds')
+      .name('Show Bounds')
+      .onChange(() => this.handlePropertyChange('show_bounds'));
+
+    simulationFolder.add(this.config, 'show_normals')
+      .name('Show Normals')
+      .onChange(() => this.handlePropertyChange('show_normals'));
 
     this.config.speedUp = () => {
       if (this.callbacks.onRealTimeUpdate) {
@@ -139,7 +152,7 @@ class ConfigManager {
       .name('Form Molecules')
       .onChange(() => this.handlePropertyChange('form_molecules'));
 
-    physicsFolder.add(this.config, 'restitution_coefficient', 0, 2)
+    physicsFolder.add(this.config, 'restitution_coefficient', 0, 2, 0.01)
       .name('Restitution')
       .onChange(() => this.handlePropertyChange('restitution_coefficient'));
 
@@ -216,10 +229,10 @@ class ConfigManager {
       case 'cradle':
         Object.assign(this.config, {
           scenario: 'cradle',
-          number_of_atoms: 3,
-          atom_size: 15,
-          form_molecules: true,
-          restitution_coefficient: 0.7,
+          number_of_atoms: 8,
+          atom_size: 10,
+          form_molecules: false,
+          restitution_coefficient: 0.99,
         });
         break;
       case 'lattice':

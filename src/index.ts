@@ -2,12 +2,13 @@ import Stats from "stats.js";
 import {
   AmbientLight,
   BoxBufferGeometry,
+  BufferGeometry,
   Color,
   EdgesGeometry,
   Euler,
+  Float32BufferAttribute,
   LineBasicMaterial,
   LineSegments,
-  Mesh,
   MeshBasicMaterial,
   MeshNormalMaterial,
   MeshStandardMaterial,
@@ -15,6 +16,7 @@ import {
   PerspectiveCamera,
   Scene,
   Vector3,
+  VertexColors,
   WebGLRenderer
 } from "three";
 
@@ -36,6 +38,7 @@ class Main {
    * TODO: They should all be molecules
    */
   public atoms: Atom[];
+  public atomNormals: LineSegments[];
   public molecules: {[key: number]: Molecule};
 
   /** The boundaries of the simulation */
@@ -108,6 +111,16 @@ class Main {
         }
         break;
 
+      case 'show_bounds':
+        this._bounds.visible = Config.show_bounds;
+        break;
+
+      case 'show_normals':
+        for (const normal of this.atomNormals) {
+          normal.visible = Config.show_normals;
+        }
+        break;
+
       case 'atom_mass':
       case 'restitution_coefficient':
         // These two are handled in the collider.
@@ -149,20 +162,20 @@ class Main {
       }
     });
 
+    this.atomNormals.forEach(atomNormal => {
+      this._scene.remove(atomNormal);
+      atomNormal.geometry.dispose();
+    });
+
     // Remove all molecules
     Object.values(this.molecules).forEach(molecule => {
       this._scene.remove(molecule.pivotGroup);
       // Molecules contain atoms, so we don't need to dispose their geometry/materials separately
     });
 
-    for (const child of this._scene.children) {
-      if (child instanceof Mesh) {
-        this._scene.remove(child);
-      }
-    }
-
     this.atoms = [];
     this.molecules = {};
+    this.atomNormals = [];
   }
 
   private updateMaterials(): void {
@@ -221,6 +234,7 @@ class Main {
     // Add the boundaries
     this._bounds = this.createBoundaryMesh();
     this._scene.add(this._bounds);
+    this._bounds.visible = Config.show_bounds;
 
     this.updateMaterials();
 
@@ -230,6 +244,7 @@ class Main {
 
     // Add atoms.
     this.atoms = [];
+    this.atomNormals = [];
     this.molecules = {};
     this.createScenario();
     this._collisionDetector = new CollisionDetector(this.atoms, Object.values(this.molecules));
@@ -237,9 +252,96 @@ class Main {
   }
 
   private createAtoms(num: number) {
+    function getArrowGeometry(geometry: BufferGeometry, size: number = 1): BufferGeometry {
+      const arrowSize = 0.1;
+      const normals: number[] = [];
+      const colors: number[] = [];
+      const positions = geometry.attributes.position.array;
+      for (let i = 0; i < positions.length; i += 12) { // 12 values per face (4 vertices * 3 coords)
+        const faceNormal = new Vector3().fromArray(positions, i + 9)
+          .sub(new Vector3().fromArray(positions, i))
+          .cross(new Vector3().fromArray(positions, i + 6)
+          .sub(new Vector3().fromArray(positions, i)));
+        faceNormal.normalize();
+
+        const center = new Vector3();
+        center.x = (positions[i] + positions[i + 3] + positions[i + 6] + positions[i + 9]) / 4;
+        center.y = (positions[i + 1] + positions[i + 4] + positions[i + 7] + positions[i + 10]) / 4;
+        center.z = (positions[i + 2] + positions[i + 5] + positions[i + 8] + positions[i + 11]) / 4;
+
+        const faceNum = Math.floor(i / 12); // right, left, bottom, top, front, back
+        let d1 = new Vector3();
+        let d2 = new Vector3();
+        let color = new Vector3();
+        switch (faceNum) {
+          case 0: // Right
+          d1.set(1, 0, 1);
+          d2.set(1, 0, -1);
+          color.set(0, 1, 0); // Green
+          break;
+          case 1: // Left
+          d1.set(-1, 0, 1);
+          d2.set(-1, 0, -1);
+          color.set(1, 0, 0); // Red
+          break;
+          case 2: // Bottom
+          d1.set(0, 1, 1);
+          d2.set(0, 1, -1);
+          color.set(1, 1, 0); // Yellow
+          break;
+          case 3: // Top
+          d1.set(0, -1, 1);
+          d2.set(0, -1, -1);
+          color.set(0, 0, 1); // Blue
+          break;
+          case 4: // Front
+          d1.set(1, 0, 1);
+          d2.set(-1, 0, 1);
+          color.set(0, 1, 1); // Cyan
+          break;
+          case 5: // Back
+          d1.set(1, 0, -1);
+          d2.set(-1, 0, -1);
+          color.set(1, 0, 1); // Cyan
+          break;
+        }
+
+        normals.push(center.x, center.y, center.z);
+        colors.push(color.x, color.y, color.z);
+        const point = new Vector3(center.x + faceNormal.x * size, center.y + faceNormal.y * size, center.z + faceNormal.z * size);
+        normals.push(point.x, point.y, point.z);
+        colors.push(color.x, color.y, color.z);
+
+        normals.push(point.x, point.y, point.z);
+        colors.push(color.x, color.y, color.z);
+        const left_arrow_point = d1.multiplyScalar(size * arrowSize).add(point);
+        normals.push(left_arrow_point.x, left_arrow_point.y, left_arrow_point.z);
+        colors.push(color.x, color.y, color.z);
+        const right_arrow_point = d2.multiplyScalar(size * arrowSize).add(point);
+        normals.push(right_arrow_point.x, right_arrow_point.y, right_arrow_point.z);
+        colors.push(color.x, color.y, color.z);
+        normals.push(point.x, point.y, point.z);
+        colors.push(color.x, color.y, color.z);
+      }
+
+      const normalsGeometry = new BufferGeometry();
+      normalsGeometry.setAttribute('position', new Float32BufferAttribute(normals, 3));
+      normalsGeometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
+      return normalsGeometry;
+    }
+
+    const geometry = new BoxBufferGeometry(Config.atom_size, Config.atom_size, Config.atom_size);
+    const arrowGeometry = getArrowGeometry(geometry, Config.atom_size * 1.3);
+
+    // TODO: arrows should just be children of atoms
+    const normalsMaterials = new LineBasicMaterial({ vertexColors: VertexColors });
     for (let i = 0; i < num; i++) {
-      this.atoms.push(new Atom(i, this._notCollidingMaterial));
+      const normalsLines = new LineSegments(arrowGeometry, normalsMaterials);
+      this.atoms.push(new Atom(i, geometry, this._notCollidingMaterial));
       this._scene.add(this.atoms[i]);
+      this.atomNormals.push(normalsLines);
+      this._scene.add(normalsLines);
+      normalsLines.visible = Config.show_normals;
     }
   }
 
@@ -349,8 +451,11 @@ class Main {
 
     // Only update simulation if not paused
     if (this._isAnimating) {
-      for (const atom of this.atoms) {
-        atom.update();
+      for (let index = 0; index < this.atoms.length; index++) {
+        this.atoms[index].update();
+        // TODO: Again, the normals should just be children of the atoms to save this calc.
+        this.atoms[index].getWorldPosition(this.atomNormals[index].position);
+        this.atomNormals[index].quaternion.copy(this.atoms[index].quaternion);
       }
       for (const molecule of Object.values(this.molecules)) {
         molecule.update();
@@ -432,7 +537,7 @@ class Main {
     const edges = new EdgesGeometry(geometry);
 
     const lineMaterial = new LineBasicMaterial({
-      color: 0x00ff00,
+      color: 0xf0f0f0,
       linewidth: 1
     });
     return new LineSegments(edges, lineMaterial);

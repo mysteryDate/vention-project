@@ -22,8 +22,8 @@ export default class Atom extends Mesh {
   private _boundingBox: Box3 = new Box3();
   private _boundingBoxDirty: boolean = true;
 
-  constructor(key: number, material: Material) {
-    super(new BoxBufferGeometry(Config.atom_size, Config.atom_size, Config.atom_size), material);
+  constructor(key: number, geometry: BoxBufferGeometry, material: Material) {
+    super(geometry, material);
     this.key = key;
 
     function randomVector3() {
