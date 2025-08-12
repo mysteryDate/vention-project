@@ -455,7 +455,7 @@ class Main {
         this.atoms[index].update();
         // TODO: Again, the normals should just be children of the atoms to save this calc.
         this.atoms[index].getWorldPosition(this.atomNormals[index].position);
-        this.atomNormals[index].quaternion.copy(this.atoms[index].quaternion);
+        this.atoms[index].getWorldQuaternion(this.atomNormals[index].quaternion);
       }
       for (const molecule of Object.values(this.molecules)) {
         molecule.update();
