@@ -38030,7 +38030,7 @@ var Main = /*#__PURE__*/function () {
           this.atoms[index].update();
           // TODO: Again, the normals should just be children of the atoms to save this calc.
           this.atoms[index].getWorldPosition(this.atomNormals[index].position);
-          this.atomNormals[index].quaternion.copy(this.atoms[index].quaternion);
+          this.atoms[index].getWorldQuaternion(this.atomNormals[index].quaternion);
         }
         for (var _i3 = 0, _Object$values3 = Object.values(this.molecules); _i3 < _Object$values3.length; _i3++) {
           var molecule = _Object$values3[_i3];
@@ -38173,7 +38173,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "49193" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "61325" + '/');
   ws.onmessage = function (event) {
     checkedAssets = {};
     assetsToAccept = [];
