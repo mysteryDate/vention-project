@@ -12,7 +12,7 @@ export function areMatchingFacesColliding(atomA: Atom, atomB: Atom): boolean {
       /*
               E-------F
             /|      /|
-            / |     / |
+           / |     / |
           A--|----B  |
           |  G----|--H
           | /     | /

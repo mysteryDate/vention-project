@@ -407,8 +407,15 @@ class Main {
 
       this.atoms.forEach(atom => {
         if (atom.key == num_atoms - 1) {
-          atom.velocity.normalize().multiplyScalar(0.5);
-          atom.position.x = -Config.simulation_size / 2;
+          atom.velocity.normalize().multiplyScalar(0.0);
+          atom.position.x = 0;
+          atom.position.z = Config.simulation_size / 2;
+          atom.position.y = Config.simulation_size / 2;
+          // atom.quaternion.setFromEuler(new Euler(0, 0, 0));
+          // atom.rotation_speed = 0;
+          atom.velocity.y = -0.1;
+          atom.position.z -= spacing + Config.atom_size / 2;
+          atom.position.x -= spacing/2 + Config.atom_size / 2;
         } else {
           const x_rank = (atom.key % grid_size);
           const y_rank = Math.floor(atom.key / grid_size) % grid_size;
@@ -451,6 +458,9 @@ class Main {
 
     // Only update simulation if not paused
     if (this._isAnimating) {
+      // Collisions
+      const collisions: Collision[] = this._collisionDetector.detectCollisions();
+
       for (let index = 0; index < this.atoms.length; index++) {
         this.atoms[index].update();
         // TODO: Again, the normals should just be children of the atoms to save this calc.
@@ -461,13 +471,7 @@ class Main {
         molecule.update();
       }
 
-      // Collisions
-      const collisions: Collision[] = this._collisionDetector.detectCollisions();
-      const collidingAtomKeys = new Set<number>();
-
       for (const collision of collisions) {
-        collidingAtomKeys.add(collision.pair[0].key);
-        collidingAtomKeys.add(collision.pair[1].key);
         const atom1 = collision.pair[0];
         const atom2 = collision.pair[1];
         if (collision.isSticking) { // Sticky collision
