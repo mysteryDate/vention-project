@@ -4,10 +4,10 @@
   "description": "Three.js starter template with Typescript.",
   "main": "index.html",
   "private": true,
-  "homepage": "https://mysteryDate.github.io/vention-project",
+  "homepage": "https://mysteryDate.github.io/box-collider",
   "scripts": {
     "start": "parcel index.html --open",
-    "build": "parcel build index.html --public-url /vention-project/",
+    "build": "parcel build index.html --public-url /box-collider/",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },
