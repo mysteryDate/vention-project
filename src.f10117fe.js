@@ -36433,7 +36433,7 @@ var ConfigManager = /*#__PURE__*/function () {
       simulationFolder.add(this.config, 'simulation_size', 50, 200).name('Simulation Size').onChange(function () {
         return _this.handlePropertyChange('simulation_size');
       });
-      simulationFolder.add(this.config, 'number_of_atoms', 2, 1000, 1).name('Number of Atoms').onChange(function () {
+      simulationFolder.add(this.config, 'number_of_atoms', 2, 10000, 1).name('Number of Atoms').onChange(function () {
         return _this.handlePropertyChange('number_of_atoms');
       });
       simulationFolder.add(this.config, 'pauseSimulation').name('Pause').onChange(function () {
@@ -36566,7 +36566,7 @@ var ConfigManager = /*#__PURE__*/function () {
         case 'lattice':
           Object.assign(this.config, {
             scenario: 'lattice',
-            number_of_atoms: 512,
+            number_of_atoms: 1331,
             atom_size: 3,
             form_molecules: false
           });
@@ -36785,7 +36785,7 @@ function areMatchingFacesColliding(atomA, atomB) {
     /*
             E-------F
           /|      /|
-          / |     / |
+         / |     / |
         A--|----B  |
         |  G----|--H
         | /     | /
@@ -37112,12 +37112,12 @@ function _isNativeReflectConstruct() { try { var t = !Boolean.prototype.valueOf.
 function _getPrototypeOf(t) { return _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf.bind() : function (t) { return t.__proto__ || Object.getPrototypeOf(t); }, _getPrototypeOf(t); }
 function _inherits(t, e) { if ("function" != typeof e && null !== e) throw new TypeError("Super expression must either be null or a function"); t.prototype = Object.create(e && e.prototype, { constructor: { value: t, writable: !0, configurable: !0 } }), Object.defineProperty(t, "prototype", { writable: !1 }), e && _setPrototypeOf(t, e); }
 function _setPrototypeOf(t, e) { return _setPrototypeOf = Object.setPrototypeOf ? Object.setPrototypeOf.bind() : function (t, e) { return t.__proto__ = e, t; }, _setPrototypeOf(t, e); }
+function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t.return || t.return(); } finally { if (u) throw o; } } }; }
 function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread(); }
 function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
 function _iterableToArray(r) { if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r); }
 function _arrayWithoutHoles(r) { if (Array.isArray(r)) return _arrayLikeToArray(r); }
 function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
-function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t.return || t.return(); } finally { if (u) throw o; } } }; }
 function _slicedToArray(r, e) { return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest(); }
 function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
 function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
@@ -37141,124 +37141,105 @@ var three_1 = require("three");
 var config_1 = __importDefault(require("./config"));
 var matching_faces_test_1 = require("./matching-faces-test");
 var molecule_1 = __importDefault(require("./molecule"));
-// https://en.wikipedia.org/wiki/Sweep_and_prune
-// Basically store pointers to all of the atoms, sorted by their extents when projected along each axis.
-// In order for two atoms to be colliding, they MUST be overlapping on all three axes.
-// Atom pairs that pass this test are passed along to the SAT (separating axis theorem) detector for a more thorough
-// collision test.
-var SweepAndPrune = /*#__PURE__*/function () {
-  function SweepAndPrune(atoms, molecules) {
-    var _this = this;
-    _classCallCheck(this, SweepAndPrune);
+var SpacePartition = /*#__PURE__*/function () {
+  function SpacePartition(atoms) {
+    _classCallCheck(this, SpacePartition);
+    // private _grid_size: number = Config.atom_size * Math.sqrt(3);
+    this._grid_size = config_1.default.atom_size;
+    this._num_rows = Math.floor(config_1.default.simulation_size / this._grid_size) + 1;
+    this._NEIGHBORS = [];
     this._atoms = atoms;
-    this._sortedAxes = new Map();
-    this._axes = [{
-      dimension: 'x',
-      getMin: function getMin(atom) {
-        return atom.getMinX();
-      },
-      getMax: function getMax(atom) {
-        return atom.getMaxX();
-      }
-    }, {
-      dimension: 'y',
-      getMin: function getMin(atom) {
-        return atom.getMinY();
-      },
-      getMax: function getMax(atom) {
-        return atom.getMaxY();
-      }
-    }, {
-      dimension: 'z',
-      getMin: function getMin(atom) {
-        return atom.getMinZ();
-      },
-      getMax: function getMax(atom) {
-        return atom.getMaxZ();
-      }
-    }];
-    this._axes.forEach(function (axis) {
-      _this._sortedAxes.set(axis.dimension, []);
-      _this._atoms.forEach(function (atom) {
-        _this._sortedAxes.get(axis.dimension).push(atom);
-      });
-    });
-  }
-  return _createClass(SweepAndPrune, [{
-    key: "sortAxis",
-    value: function sortAxis(axis) {
-      var sorted = this._sortedAxes.get(axis.dimension);
-      sorted.sort(function (a, b) {
-        return axis.getMax(a) - axis.getMin(b);
-      });
+    for (var i = 0; i < 27; i++) {
+      this._NEIGHBORS.push([Math.floor(i % 3 - 1), Math.floor(i / 3 % 3 - 1), Math.floor(i / 9 % 3 - 1)]);
     }
-    // Return a list of "atomA.key-atomB.key" strings for every pair of atoms that are overlapping in all axes.
-  }, {
-    key: "sweepAxis",
-    value: function sweepAxis(axis) {
-      var overlappingPairs = new Set();
-      var sorted = this._sortedAxes.get(axis.dimension);
-      for (var i = 0; i < sorted.length; i++) {
-        var atomA = sorted[i];
-        for (var j = i + 1; j < sorted.length; j++) {
-          var atomB = sorted[j];
-          // If the two atoms are separated, they are not colliding.
-          if (axis.getMin(atomB) > axis.getMax(atomA)) {
-            break;
-          }
-          // TODO: sorry, this is so ugly. A simple list of two numbers doesn't work with Set.has()
-          var keyPair = atomA.key < atomB.key ? "".concat(atomA.key, "-").concat(atomB.key) : "".concat(atomB.key, "-").concat(atomA.key);
-          overlappingPairs.add(keyPair);
+    this._grid = [];
+    for (var x = 0; x < this._num_rows; x++) {
+      this._grid[x] = [];
+      for (var y = 0; y < this._num_rows; y++) {
+        this._grid[x][y] = [];
+        for (var z = 0; z < this._num_rows; z++) {
+          this._grid[x][y][z] = [];
         }
       }
-      return overlappingPairs;
+    }
+  }
+  return _createClass(SpacePartition, [{
+    key: "getAddress",
+    value: function getAddress(atom) {
+      var position = atom.getWorldPosition(new three_1.Vector3());
+      var x = Math.floor(Math.min(config_1.default.simulation_size / this._grid_size, Math.max(0, (position.x + config_1.default.simulation_size / 2) / this._grid_size)));
+      var y = Math.floor(Math.min(config_1.default.simulation_size / this._grid_size, Math.max(0, (position.y + config_1.default.simulation_size / 2) / this._grid_size)));
+      var z = Math.floor(Math.min(config_1.default.simulation_size / this._grid_size, Math.max(0, (position.z + config_1.default.simulation_size / 2) / this._grid_size)));
+      return [x, y, z];
     }
   }, {
-    key: "detectSAPCollisions",
-    value: function detectSAPCollisions() {
-      var _this2 = this;
-      // Sort axis aligned bounding boxes on all axes and get overlaps.
-      var axisOverlaps = this._axes.map(function (axis) {
-        _this2.sortAxis(axis);
-        return _this2.sweepAxis(axis);
+    key: "fillGrid",
+    value: function fillGrid() {
+      var _this = this;
+      this.clearGrid();
+      this._atoms.forEach(function (atom) {
+        var _this$getAddress = _this.getAddress(atom),
+          _this$getAddress2 = _slicedToArray(_this$getAddress, 3),
+          x = _this$getAddress2[0],
+          y = _this$getAddress2[1],
+          z = _this$getAddress2[2];
+        if (x && y && z) {
+          _this._grid[x][y][z].push(atom);
+        }
       });
-      // Find pairs that overlap on ALL axes.
-      var collisionPairs = [];
-      var _axisOverlaps = _slicedToArray(axisOverlaps, 3),
-        xOverlaps = _axisOverlaps[0],
-        yOverlaps = _axisOverlaps[1],
-        zOverlaps = _axisOverlaps[2];
-      var _iterator = _createForOfIteratorHelper(xOverlaps),
-        _step;
-      try {
-        var _loop = function _loop() {
-          var pair = _step.value;
-          if (yOverlaps.has(pair) && zOverlaps.has(pair)) {
-            var keyA = parseInt(pair.split('-')[0]);
-            var keyB = parseInt(pair.split('-')[1]);
-            var cubeA = _this2._atoms.find(function (atom) {
-              return atom.key === keyA;
-            });
-            var cubeB = _this2._atoms.find(function (atom) {
-              return atom.key === keyB;
-            });
-            if (cubeA && cubeB) {
-              if (cubeA.molecule_id == cubeB.molecule_id && cubeA.is_in_molecule) {
-                // Ignore cubes colliding within their own molecules.
-              } else {
-                collisionPairs.push([cubeA, cubeB]);
-              }
+    }
+  }, {
+    key: "clearGrid",
+    value: function clearGrid() {
+      // TODO: I'm sure there's a clever way to avoid GC
+      for (var x = 0; x < this._num_rows; x++) {
+        for (var y = 0; y < this._num_rows; y++) {
+          for (var z = 0; z < this._num_rows; z++) {
+            this._grid[x][y][z] = [];
+          }
+        }
+      }
+    }
+  }, {
+    key: "detectSpacePartitionCollisions",
+    value: function detectSpacePartitionCollisions() {
+      var _this2 = this;
+      this.fillGrid();
+      var grid = this._grid;
+      var collisionPairSet = new Set();
+      this._atoms.forEach(function (atom) {
+        var _this2$getAddress = _this2.getAddress(atom),
+          _this2$getAddress2 = _slicedToArray(_this2$getAddress, 3),
+          x = _this2$getAddress2[0],
+          y = _this2$getAddress2[1],
+          z = _this2$getAddress2[2];
+        _this2._NEIGHBORS.forEach(function (neighbor) {
+          var a = x + neighbor[0],
+            b = y + neighbor[1],
+            c = z + neighbor[2];
+          if (a != -1 && b != -1 && c != -1 && a < grid.length && b < grid.length && c < grid.length) {
+            var neighbors = grid[a][b][c];
+            if (neighbors) {
+              neighbors.filter(function (atom2) {
+                return atom2.key != atom.key;
+              }).forEach(function (atom2) {
+                if (atom.molecule_id == atom2.molecule_id && atom.is_in_molecule) {} else {
+                  var keyPair = atom.key < atom2.key ? "".concat(atom.key, "-").concat(atom2.key) : "".concat(atom2.key, "-").concat(atom.key);
+                  collisionPairSet.add(keyPair);
+                }
+              });
             }
           }
-        };
-        for (_iterator.s(); !(_step = _iterator.n()).done;) {
-          _loop();
-        }
-      } catch (err) {
-        _iterator.e(err);
-      } finally {
-        _iterator.f();
-      }
+        });
+      });
+      var collisionPairs = [];
+      collisionPairSet.forEach(function (keyPair) {
+        var keyA = parseInt(keyPair.split('-')[0]);
+        var keyB = parseInt(keyPair.split('-')[1]);
+        var atomA = _this2._atoms[keyA];
+        var atomB = _this2._atoms[keyB];
+        collisionPairs.push([atomA, atomB]);
+      });
       return collisionPairs;
     }
   }]);
@@ -37334,11 +37315,11 @@ var SATCollisionDetector = /*#__PURE__*/function () {
           return cross.normalize();
         });
       })));
-      var _iterator2 = _createForOfIteratorHelper(testAxes),
-        _step2;
+      var _iterator = _createForOfIteratorHelper(testAxes),
+        _step;
       try {
-        for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
-          var axis = _step2.value;
+        for (_iterator.s(); !(_step = _iterator.n()).done;) {
+          var axis = _step.value;
           var result = this.testSeparatingAxis(obbA, obbB, axis);
           if (result.separated) {
             return null; // No collision
@@ -37356,12 +37337,15 @@ var SATCollisionDetector = /*#__PURE__*/function () {
         }
         // Approximate contact point as midpoint between the two atoms.
       } catch (err) {
-        _iterator2.e(err);
+        _iterator.e(err);
       } finally {
-        _iterator2.f();
+        _iterator.f();
       }
       var contactPoint = obbA.center.clone().add(obbB.center).multiplyScalar(0.5);
-      var isMatchingFaces = (0, matching_faces_test_1.areMatchingFacesColliding)(atomA, atomB);
+      var isMatchingFaces = false;
+      if (config_1.default.form_molecules) {
+        isMatchingFaces = (0, matching_faces_test_1.areMatchingFacesColliding)(atomA, atomB);
+      }
       return {
         atomA: atomA,
         atomB: atomB,
@@ -37483,28 +37467,28 @@ var SATCollisionDetector = /*#__PURE__*/function () {
   }]);
 }(); // For testing that the combined axes aren't degenerate.
 SATCollisionDetector.EPSILON = 1e-6;
-var CollisionDetector = /*#__PURE__*/function (_SweepAndPrune) {
+var CollisionDetector = /*#__PURE__*/function (_SpacePartition) {
   function CollisionDetector() {
     _classCallCheck(this, CollisionDetector);
     return _callSuper(this, CollisionDetector, arguments);
   }
-  _inherits(CollisionDetector, _SweepAndPrune);
+  _inherits(CollisionDetector, _SpacePartition);
   return _createClass(CollisionDetector, [{
     key: "detectCollisions",
     value: function detectCollisions() {
       // First, get potential collision pairs from sweep-and-prune (broad phase)
-      var broadPhaseCollisions = this.detectSAPCollisions();
+      var broadPhaseCollisions = this.detectSpacePartitionCollisions();
       // Then, filter using SAT for precise collision detection (narrow phase)
       // Though it feels poorly structured. This is an easy time to actually update the velocities and rotations of the
       // cubes.
       var preciseCollisions = [];
-      var _iterator3 = _createForOfIteratorHelper(broadPhaseCollisions),
-        _step3;
+      var _iterator2 = _createForOfIteratorHelper(broadPhaseCollisions),
+        _step2;
       try {
-        for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
-          var _step3$value = _slicedToArray(_step3.value, 2),
-            atomA = _step3$value[0],
-            atomB = _step3$value[1];
+        for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+          var _step2$value = _slicedToArray(_step2.value, 2),
+            atomA = _step2$value[0],
+            atomB = _step2$value[1];
           var _SATCollisionDetector = SATCollisionDetector.testAndResolveCollision(atomA, atomB),
             isColliding = _SATCollisionDetector.isColliding,
             isSticking = _SATCollisionDetector.isSticking;
@@ -37516,14 +37500,14 @@ var CollisionDetector = /*#__PURE__*/function (_SweepAndPrune) {
           }
         }
       } catch (err) {
-        _iterator3.e(err);
+        _iterator2.e(err);
       } finally {
-        _iterator3.f();
+        _iterator2.f();
       }
       return preciseCollisions;
     }
   }]);
-}(SweepAndPrune);
+}(SpacePartition);
 exports.default = CollisionDetector;
 },{"three":"node_modules/three/build/three.module.js","./config":"src/config.ts","./matching-faces-test":"src/matching-faces-test.ts","./molecule":"src/molecule.ts"}],"src/index.ts":[function(require,module,exports) {
 "use strict";
@@ -37984,8 +37968,15 @@ var Main = /*#__PURE__*/function () {
         var spacing = (config_1.default.simulation_size - span) / (grid_size + 1);
         this.atoms.forEach(function (atom) {
           if (atom.key == _num_atoms - 1) {
-            atom.velocity.normalize().multiplyScalar(0.5);
-            atom.position.x = -config_1.default.simulation_size / 2;
+            // atom.velocity.normalize().multiplyScalar(0.0);
+            // atom.position.x = 0;
+            // atom.position.z = Config.simulation_size / 2;
+            // atom.position.y = Config.simulation_size / 2;
+            // atom.quaternion.setFromEuler(new Euler(0, 0, 0));
+            // atom.rotation_speed = 0;
+            // atom.velocity.y = -0.1;
+            // atom.position.z -= spacing + Config.atom_size / 2;
+            // atom.position.x -= spacing/2 + Config.atom_size / 2;
           } else {
             var x_rank = atom.key % grid_size;
             var y_rank = Math.floor(atom.key / grid_size) % grid_size;
@@ -38026,6 +38017,8 @@ var Main = /*#__PURE__*/function () {
       config_1.configManager.updateInfo(this._fps, this.atoms.length, Object.keys(this.molecules).length);
       // Only update simulation if not paused
       if (this._isAnimating) {
+        // Collisions
+        var collisions = this._collisionDetector.detectCollisions();
         for (var index = 0; index < this.atoms.length; index++) {
           this.atoms[index].update();
           // TODO: Again, the normals should just be children of the atoms to save this calc.
@@ -38036,16 +38029,11 @@ var Main = /*#__PURE__*/function () {
           var molecule = _Object$values3[_i3];
           molecule.update();
         }
-        // Collisions
-        var collisions = this._collisionDetector.detectCollisions();
-        var collidingAtomKeys = new Set();
         var _iterator4 = _createForOfIteratorHelper(collisions),
           _step4;
         try {
           for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
             var collision = _step4.value;
-            collidingAtomKeys.add(collision.pair[0].key);
-            collidingAtomKeys.add(collision.pair[1].key);
             var atom1 = collision.pair[0];
             var atom2 = collision.pair[1];
             if (collision.isSticking) {
@@ -38173,7 +38161,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "61325" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "64668" + '/');
   ws.onmessage = function (event) {
     checkedAssets = {};
     assetsToAccept = [];
