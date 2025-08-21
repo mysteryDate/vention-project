@@ -407,15 +407,15 @@ class Main {
 
       this.atoms.forEach(atom => {
         if (atom.key == num_atoms - 1) {
-          atom.velocity.normalize().multiplyScalar(0.0);
-          atom.position.x = 0;
-          atom.position.z = Config.simulation_size / 2;
-          atom.position.y = Config.simulation_size / 2;
+          // atom.velocity.normalize().multiplyScalar(0.0);
+          // atom.position.x = 0;
+          // atom.position.z = Config.simulation_size / 2;
+          // atom.position.y = Config.simulation_size / 2;
           // atom.quaternion.setFromEuler(new Euler(0, 0, 0));
           // atom.rotation_speed = 0;
-          atom.velocity.y = -0.1;
-          atom.position.z -= spacing + Config.atom_size / 2;
-          atom.position.x -= spacing/2 + Config.atom_size / 2;
+          // atom.velocity.y = -0.1;
+          // atom.position.z -= spacing + Config.atom_size / 2;
+          // atom.position.x -= spacing/2 + Config.atom_size / 2;
         } else {
           const x_rank = (atom.key % grid_size);
           const y_rank = Math.floor(atom.key / grid_size) % grid_size;

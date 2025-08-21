@@ -88,7 +88,7 @@ class ConfigManager {
       .name('Simulation Size')
       .onChange(() => this.handlePropertyChange('simulation_size'));
 
-    simulationFolder.add(this.config, 'number_of_atoms', 2, 1000, 1)
+    simulationFolder.add(this.config, 'number_of_atoms', 2, 10000, 1)
       .name('Number of Atoms')
       .onChange(() => this.handlePropertyChange('number_of_atoms'));
 
@@ -238,7 +238,7 @@ class ConfigManager {
       case 'lattice':
         Object.assign(this.config, {
           scenario: 'lattice',
-          number_of_atoms: 512,
+          number_of_atoms: 1331,
           atom_size: 3,
           form_molecules: false,
         });

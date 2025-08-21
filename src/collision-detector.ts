@@ -11,91 +11,95 @@ type Axis = {
   getMax: (atom: Atom) => number;
 }
 
-// https://en.wikipedia.org/wiki/Sweep_and_prune
-// Basically store pointers to all of the atoms, sorted by their extents when projected along each axis.
-// In order for two atoms to be colliding, they MUST be overlapping on all three axes.
-// Atom pairs that pass this test are passed along to the SAT (separating axis theorem) detector for a more thorough
-// collision test.
-class SweepAndPrune {
+class SpacePartition {
   private _atoms: Atom[];
-  private _sortedAxes: Map<string, Atom[]>; // Atoms stored sorted by x, y, and z axis.
-  private _axes: Axis[];
+  private _grid: Atom[][][][];
+  // private _grid_size: number = Config.atom_size * Math.sqrt(3);
+  private _grid_size: number = Config.atom_size;
+  private _num_rows: number = Math.floor(Config.simulation_size / this._grid_size) + 1;
+  private _NEIGHBORS: [number, number, number][] = [];
 
-  constructor(atoms: Atom[], molecules: Molecule[]) {
+  constructor(atoms: Atom[]) {
     this._atoms = atoms;
-    this._sortedAxes = new Map();
-
-    this._axes = [
-      {dimension: 'x', getMin: (atom) => atom.getMinX(), getMax: (atom) => atom.getMaxX()},
-      {dimension: 'y', getMin: (atom) => atom.getMinY(), getMax: (atom) => atom.getMaxY()},
-      {dimension: 'z', getMin: (atom) => atom.getMinZ(), getMax: (atom) => atom.getMaxZ()},
-    ];
-
-    this._axes.forEach(axis => {
-      this._sortedAxes.set(axis.dimension, []);
-      this._atoms.forEach(atom => {
-        this._sortedAxes.get(axis.dimension)!.push(atom);
-      });
-    });
-  }
-
-  private sortAxis(axis: Axis): void {
-    const sorted = this._sortedAxes.get(axis.dimension)!;
-    sorted.sort((a, b) => axis.getMax(a) - axis.getMin(b));
-  }
-
-
-  // Return a list of "atomA.key-atomB.key" strings for every pair of atoms that are overlapping in all axes.
-  private sweepAxis(axis: Axis): Set<string> {
-    const overlappingPairs = new Set<string>();
-    const sorted = this._sortedAxes.get(axis.dimension)!;
-
-    for (let i = 0; i < sorted.length; i++) {
-      const atomA = sorted[i];
-
-      for (let j = i + 1; j < sorted.length; j++) {
-        const atomB = sorted[j];
-
-        // If the two atoms are separated, they are not colliding.
-        if (axis.getMin(atomB) > axis.getMax(atomA)) {
-          break;
+    for (let i = 0; i < 27; i++) {
+      this._NEIGHBORS.push([
+        Math.floor((i % 3) - 1),
+        Math.floor((i / 3) % 3 - 1),
+        Math.floor((i / 9) % 3 - 1)
+      ]);
+    }
+    this._grid = [];
+    for (let x = 0; x < this._num_rows; x++) {
+      this._grid[x] = [];
+      for (let y = 0; y < this._num_rows; y++) {
+        this._grid[x][y] = [];
+        for (let z = 0; z < this._num_rows; z++) {
+          this._grid[x][y][z] = [];
         }
-
-        // TODO: sorry, this is so ugly. A simple list of two numbers doesn't work with Set.has()
-        const keyPair = atomA.key < atomB.key ? `${atomA.key}-${atomB.key}` : `${atomB.key}-${atomA.key}`;
-        overlappingPairs.add(keyPair);
       }
     }
-
-    return overlappingPairs;
   }
 
-  detectSAPCollisions(): CollisionPair[] {
-    // Sort axis aligned bounding boxes on all axes and get overlaps.
-    const axisOverlaps = this._axes.map(axis => {
-      this.sortAxis(axis);
-      return this.sweepAxis(axis);
+  private getAddress(atom: Atom): [number, number, number] {
+    const position = atom.getWorldPosition(new Vector3);
+    const x = Math.floor(Math.min(Config.simulation_size / this._grid_size, Math.max(0, (position.x + Config.simulation_size / 2) / this._grid_size)));
+    const y = Math.floor(Math.min(Config.simulation_size / this._grid_size, Math.max(0, (position.y + Config.simulation_size / 2) / this._grid_size)));
+    const z = Math.floor(Math.min(Config.simulation_size / this._grid_size, Math.max(0, (position.z + Config.simulation_size / 2) / this._grid_size)));
+    return [x, y, z];
+  }
+
+  private fillGrid() {
+    this.clearGrid();
+    this._atoms.forEach((atom) => {
+      const [x, y, z] = this.getAddress(atom);
+      if (x && y && z) {
+        this._grid[x][y][z].push(atom);
+      }
     });
+  }
 
-    // Find pairs that overlap on ALL axes.
-    const collisionPairs: CollisionPair[] = [];
-    const [xOverlaps, yOverlaps, zOverlaps] = axisOverlaps;
+  private clearGrid() {
+    // TODO: I'm sure there's a clever way to avoid GC
+    for (let x = 0; x < this._num_rows; x++) {
+      for (let y = 0; y < this._num_rows; y++) {
+        for (let z = 0; z < this._num_rows; z++) {
+          this._grid[x][y][z] = [];
+        }
+      }
+    }
+  }
 
-    for (const pair of xOverlaps) {
-      if (yOverlaps.has(pair) && zOverlaps.has(pair)) {
-        const keyA = parseInt(pair.split('-')[0]);
-        const keyB = parseInt(pair.split('-')[1]);
-        const cubeA = this._atoms.find(atom => atom.key === keyA);
-        const cubeB = this._atoms.find(atom => atom.key === keyB);
-        if (cubeA && cubeB) {
-          if ((cubeA.molecule_id == cubeB.molecule_id) && cubeA.is_in_molecule) {
-            // Ignore cubes colliding within their own molecules.
-          } else {
-            collisionPairs.push([cubeA, cubeB]);
+  detectSpacePartitionCollisions(): CollisionPair[] {
+    this.fillGrid();
+    const grid = this._grid;
+    const collisionPairSet: Set<string> = new Set();
+    this._atoms.forEach((atom) => {
+      const [x, y, z] = this.getAddress(atom);
+      this._NEIGHBORS.forEach(neighbor => {
+        const [a, b, c] = [x + neighbor[0], y + neighbor[1], z + neighbor[2]];
+        if (a != -1 && b != -1 && c != -1 && a < grid.length && b < grid.length && c < grid.length) {
+          const neighbors = grid[a][b][c];
+          if (neighbors) {
+            neighbors.filter(atom2 => { return atom2.key != atom.key).forEach(atom2 => {
+              if ((atom.molecule_id == atom2.molecule_id) && atom.is_in_molecule) {
+              } else {
+                const keyPair = atom.key < atom2.key ? `${atom.key}-${atom2.key}` : `${atom2.key}-${atom.key}`;
+                collisionPairSet.add(keyPair);
+              }
+            });
           }
         }
-      }
-    }
+      });
+    });
+
+    const collisionPairs: CollisionPair[] = [];
+    collisionPairSet.forEach(keyPair => {
+      const keyA = parseInt(keyPair.split('-')[0]);
+      const keyB = parseInt(keyPair.split('-')[1]);
+      const atomA = this._atoms[keyA];
+      const atomB = this._atoms[keyB];
+      collisionPairs.push([atomA, atomB]);
+    });
 
     return collisionPairs;
   }
@@ -226,7 +230,10 @@ class SATCollisionDetector {
       .multiplyScalar(0.5);
 
 
-    const isMatchingFaces = areMatchingFacesColliding(atomA, atomB);
+    let isMatchingFaces = false;
+    if (Config.form_molecules) {
+      isMatchingFaces = areMatchingFacesColliding(atomA, atomB);
+    }
 
     return {
       atomA,
@@ -367,10 +374,10 @@ export type Collision = {
   pair: CollisionPair,
   isSticking: boolean,
 };
-export default class CollisionDetector extends SweepAndPrune {
+export default class CollisionDetector extends SpacePartition {
   detectCollisions(): Collision[] {
     // First, get potential collision pairs from sweep-and-prune (broad phase)
-    const broadPhaseCollisions = this.detectSAPCollisions();
+    const broadPhaseCollisions = this.detectSpacePartitionCollisions();
 
     // Then, filter using SAT for precise collision detection (narrow phase)
     // Though it feels poorly structured. This is an easy time to actually update the velocities and rotations of the
